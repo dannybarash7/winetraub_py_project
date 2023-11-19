@@ -277,15 +277,14 @@ def get_sam_input_points(no_gel_filt_img, virtual_histology_image = None):
   xs_um = xs_um[indices_to_keep]
   top_yps_um = top_yps_um[indices_to_keep]
   bottom_ys_um = bottom_ys_um[indices_to_keep]
-
-  input_point, input_label = _add_points_to_point_label(
-    _mask_outline_to_points_of_interest(
-      xs_um, top_yps_um, offset=offset_from_top_neg_mask, n_points=n_points), 0,
-    [], [])  # Epidermis
   # show_points_helper(input_point, input_label, virtual_histology_image)
   input_point, input_label = _add_points_to_point_label(
     _mask_outline_to_points_of_interest(
       xs_um, top_yps_um, offset=offset_from_top_pos_mask / scale, n_points=n_points), 1,
+    [] ,[] )  # Epidermis
+  input_point, input_label = _add_points_to_point_label(
+    _mask_outline_to_points_of_interest(
+      xs_um, top_yps_um, offset=offset_from_top_neg_mask, n_points=n_points), 0,
     input_point, input_label)  # Epidermis
   # show_points_helper(input_point, input_label, virtual_histology_image)
   input_point, input_label = _add_points_to_point_label(
