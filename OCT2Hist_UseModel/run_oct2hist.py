@@ -15,6 +15,10 @@ To get started,
 
 import random
 import sys
+import time
+
+import numpy as np
+
 from utils.show_images import showImg
 
 import torch
@@ -78,24 +82,40 @@ for filename in filtered_images:
                                                                                              microns_per_pixel_x=microns_per_pixel_x,
                                                                                              microns_per_pixel_z=microns_per_pixel_z)
     # mask
-    input_point, input_label = get_sam_input_points(masked_gel_image, virtual_histology_image)
+    input_points, input_labels = get_sam_input_points(masked_gel_image, virtual_histology_image)
 
     predictor.set_image(virtual_histology_image)
-    masks, scores, logits = predictor.predict(point_coords=input_point, point_labels=input_label,
-                                              multimask_output=False, )
-
-    for i, (mask, score) in enumerate(zip(masks, scores)):
+    # masks, scores, logits = predictor.predict(point_coords=input_point, point_labels=input_label,
+    #                                           multimask_output=False, )
+    # mask, score = masks[0], scores[0]
     plt.figure(figsize=(10, 10))
+
+    mask = None
+    for i in range(len(input_points)):
+        first_i_input_points = input_points[:i]
+        first_i_input_labels = input_labels[:i]
+        if mask is not None:
+            mask = cv2.resize(mask.astype(int), (256,256), interpolation = cv2.INTER_NEAREST )
+            mask = mask.astype(bool)
+            mask = mask[np.newaxis,:,:]
+        masks, scores, logits = predictor.predict(point_coords=first_i_input_points, point_labels=first_i_input_labels,
+                                                  multimask_output=False, mask_input = mask)
+        mask, score = masks[0], scores[0]
+
+        if i % 5 == 0:
+            plt.imshow(virtual_histology_image)
+            show_mask(mask, plt.gca())
+            show_points(first_i_input_points, first_i_input_labels, plt.gca())
+            plt.axis('off')
+            plt.show()
+            time.sleep(2)
+
     plt.imshow(virtual_histology_image)
     show_mask(mask, plt.gca())
-        show_points(input_point, input_label, plt.gca())
-        plt.title(f"Mask {i + 1}, Score: {score:.3f}", fontsize=18)
+    show_points(input_points, input_labels, plt.gca())
     plt.axis('off')
     plt.show()
-    
-    
-    iou = measure_performance()
-    print(f"Image {filename} iou:{iou}")
+    time.sleep(2)
 
 # score
 # @title Notebook Inputs { display-mode: "form" }
