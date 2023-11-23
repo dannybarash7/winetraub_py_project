@@ -37,7 +37,6 @@ rf_project_name = "11-16-2023-zero-shot-oct"
 rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
 version = 3
 #roboflow semantic classes
-DERMIS = 1
 EPIDERMIS = True #mask values for epidermis mask
 
 import numpy as np
@@ -97,17 +96,20 @@ total_iou = 0
 total_samples = 0
 annot_dataset_dir = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/zero_shot_segmentation/11/16/2023-Zero-shot-OCT-3/test/"
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
+real_histology_dir = raw_oct_dataset_dir
 # Get the list of image files
 image_files = [f for f in os.listdir(annot_dataset_dir) if f.endswith(".jpg")]
 image_files = image_files[:2]
 
 total_iou = {EPIDERMIS:0}  # DERMIS:0 , # IOU for each class
+total_iou_oct = {EPIDERMIS:0}
 total_samples = 0
 path_to_annotations = os.path.join(annot_dataset_dir, "_annotations.coco.json")
 from pylabel import importer
 dataset = importer.ImportCoco(path_to_annotations, path_to_images=annot_dataset_dir, name="zero_shot_oct")
 visualize = False
 segment_oct = True
+segment_real_hist = False
 for image_file in tqdm(image_files):
     gt_image_path = os.path.join(raw_oct_dataset_dir, image_file)
     image_path = os.path.join(annot_dataset_dir, image_file)
@@ -124,6 +126,13 @@ for image_file in tqdm(image_files):
 
     # Predict the mask using your model
     mask, masked_gel_image, crop_args = predict(image_path, predictor, weights_path = CHECKPOINT_PATH)
+
+    if segment_oct:
+        oct_mask, _, crop_args = predict(image_path, predictor, weights_path=CHECKPOINT_PATH, vhist=False)
+
+    # if segment_real_hist:
+    #     image_path = os.path.join(real_histology_dir, image_file)
+    #     oct_mask, _, crop_args = predict(image_path, predictor, weights_path=CHECKPOINT_PATH, vhist=False)
 
     if mask is None or mask.sum().sum()==0:
         print(f"Could not segment {image_path}.")
@@ -146,15 +155,18 @@ for image_file in tqdm(image_files):
 
     # Calculate IoU for each class
     for class_id in [EPIDERMIS]: # DERMIS
-        class_iou = calculate_iou(cropped_mask_gt, mask, class_id)
-        total_iou[class_id] += class_iou
+        epidermis_iou_vhist = calculate_iou(cropped_mask_gt, mask, class_id)
+        if segment_oct:
+            epidermis_iou_oct = calculate_iou(cropped_mask_gt, oct_mask, class_id)
+            total_iou_oct[class_id] += epidermis_iou_oct
+        total_iou[class_id] += epidermis_iou_vhist
 
     total_samples += 1
 
 
 
-sum_iou_all_classes = 0
-avg_iou_class = total_iou[EPIDERMIS] / total_samples
-sum_iou_all_classes += total_iou[EPIDERMIS]
-average_iou = sum_iou_all_classes / (total_samples * len(total_iou)) #sum all ious divided by (number of images * number of classes).
-print(f"Average IoU: {average_iou}")
+average_iou = total_iou[EPIDERMIS] / total_samples #sum all ious divided by (number of images * number of classes).
+print(f"Average IoU with virtual histology: {average_iou}")
+if segment_oct:
+    average_iou_oct = total_iou_oct[EPIDERMIS] / total_samples
+    print(f"Average IoU without virtual histology: {average_iou_oct}")

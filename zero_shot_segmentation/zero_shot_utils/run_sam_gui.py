@@ -26,6 +26,7 @@ class Segmenter():
         self.img = img
         self.min_mask_region_area = 500
         self.npoints = npoints
+        self.init_points = npoints
         self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
         if torch.cuda.is_available():
             self.sam.to(device="cuda")
@@ -84,7 +85,11 @@ class Segmenter():
 
     def _on_key(self, event):
         if event.key == 'z':
+            if self.npoints<self.init_points:
+                self.npoints+=1
+                self.fig.suptitle(f'Segment Anything GUI: {self.npoints} points remain', fontsize=16)
             self.undo()
+
 
         elif event.key == 'enter':
             self.new_tow()
