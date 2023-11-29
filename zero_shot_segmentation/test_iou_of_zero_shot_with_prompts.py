@@ -33,9 +33,15 @@ import os
 # Define the Roboflow project URL and API key
 rf_api_key= "R04BinsZcBZ6PsfKR2fP"
 rf_workspace= "yolab-kmmfx"
-rf_project_name = "11-16-2023-zero-shot-oct"
+rf_project_name = "11-24-2023-zero-shot"
 rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
-version = 3
+version = 1
+CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+annot_dataset_dir = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/zero_shot_segmentation/11/24/2023-zero-shot-1/test"
+raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
+real_histology_dir = raw_oct_dataset_dir
+
+
 #roboflow semantic classes
 EPIDERMIS = True #mask values for epidermis mask
 
@@ -87,16 +93,13 @@ dataset = download_images_and_masks(rf_api_key, rf_workspace, rf_project_name, r
 # prepare model
 DEVICE = torch.device('mps')  # 'cpu'
 MODEL_TYPE = "vit_h"
-CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 sam = sam_model_registry[MODEL_TYPE](checkpoint=CHECKPOINT_PATH).to(device=DEVICE)
 predictor = SamPredictor(sam)
 
 
 total_iou = 0
 total_samples = 0
-annot_dataset_dir = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/zero_shot_segmentation/11/16/2023-Zero-shot-OCT-3/test/"
-raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
-real_histology_dir = raw_oct_dataset_dir
+
 # Get the list of image files
 image_files = [f for f in os.listdir(annot_dataset_dir) if f.endswith(".jpg")]
 image_files = image_files[:2]
