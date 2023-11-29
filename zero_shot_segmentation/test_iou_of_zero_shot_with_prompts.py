@@ -103,7 +103,7 @@ total_samples = 0
 # Get the list of image files
 image_files = [f for f in os.listdir(annot_dataset_dir) if f.endswith(".jpg")]
 #image_files = image_files[1:2] #image_files[:2] #
-image_files = image_files[:2]
+#image_files = image_files[1:2]
 total_iou = {EPIDERMIS:0}  # DERMIS:0 , # IOU for each class
 total_iou_oct = {EPIDERMIS:0}
 total_samples = 0

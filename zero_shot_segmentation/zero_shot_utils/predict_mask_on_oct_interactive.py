@@ -1,3 +1,4 @@
+import os
 
 import cv2
 import matplotlib.pyplot as plt
@@ -47,14 +48,9 @@ def predict(oct_input_image_path, predictor, weights_path, vhist = True):
     right_column = oct_image.shape[1] - 1
     if (oct_image[:, 0, 0] == 0).all() or (oct_image[:, right_column, 0] == 0).all():
         oct_image = warp_oct(oct_image)
-        #assuming a trapezoidal shape, which touches the top and bottom rows.
-
-        # else:
-        # print(f"{oct_input_image_path} is sheered, I can only segment full rectangular shapes.")
-        # return None,None, None
     # top glowing layer workaround:
-    # oct_image = oct_image[200:,:,:]
-    pass
+    if os.path.basename(oct_input_image_path) == 'LF-01-Slide04_Section02-Fig-3-d-_jpeg.rf.686dda2850b99806206cb905623f33a7.jpg':
+        oct_image = oct_image[200:,:,:]
     # OCT image's pixel size
     microns_per_pixel_z = 1
     microns_per_pixel_x = 1

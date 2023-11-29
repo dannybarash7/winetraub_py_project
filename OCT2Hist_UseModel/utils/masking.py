@@ -33,7 +33,7 @@ def mask_image_gel(img, min_signal_threshold=np.nan):
   # Input checks and input image conversion
   assert(img.dtype == np.uint8)
   float_img = img.astype(np.float64)/255.0
-  #float_img[img==0] = np.nan # Treat 0 as NaN
+  float_img[img==0] = np.nan # Treat 0 as NaN
 
   # We smooth input image and compute the filter on the smooth version to prevent sharp edges
   filt_img = smooth(float_img)
