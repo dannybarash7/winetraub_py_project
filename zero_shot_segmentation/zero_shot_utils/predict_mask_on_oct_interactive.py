@@ -4,11 +4,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from OCT2Hist_UseModel.utils.crop import crop_oct
+from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale
 from OCT2Hist_UseModel.utils.masking import get_sam_input_points, show_points, show_mask, mask_gel_and_low_signal
 from OCT2Hist_UseModel import oct2hist
 from zero_shot_segmentation.zero_shot_utils.run_sam_gui import run_gui_segmentation
 
-def warp_image(source_image, target_image, source_points, target_points):
+def warp_image(source_image, source_points, target_points):
     # Convert the input points to NumPy arrays
     src_pts = np.float32(source_points)
     dst_pts = np.float32(target_points)
@@ -17,24 +18,25 @@ def warp_image(source_image, target_image, source_points, target_points):
     affine_matrix = cv2.getPerspectiveTransform(src_pts, dst_pts)
 
     # Apply the affine transformation to the source image
-    warped_image = cv2.warpPerspective(source_image, affine_matrix, (target_image.shape[1], target_image.shape[0]))
+    warped_image = cv2.warpPerspective(source_image, affine_matrix, (source_image.shape[1], source_image.shape[0]))
 
     return warped_image
 
 def warp_oct(oct_image):
+    margin = 10
     height,width,_ = oct_image.shape
     first_row = oct_image[0, :, 0]
     non_zero_indices = np.nonzero(first_row)[0]
-    x = [non_zero_indices[0],0] #0 stands for first row
-    y = [non_zero_indices[-1],0]  #0 stands for first row
+    x = [non_zero_indices[0]+margin,0] #0 stands for first row
+    y = [non_zero_indices[-1]-margin,0]  #0 stands for first row
     last_row = oct_image[-1, :, 0]
     non_zero_indices = np.nonzero(last_row)[0]
-    z = [non_zero_indices[0],height-1]
-    w = [non_zero_indices[-1],height-1]
+    z = [non_zero_indices[0]+margin,height-1]
+    w = [non_zero_indices[-1]-margin,height-1]
     source_points = np.float32([x,y,z,w])
 
     target_points = np.float32([[0, 0], [width,0], [0,height-1], [width-1,height-1]])
-    result_image = warp_image(oct_image, oct_image, source_points, target_points)
+    return warp_image(oct_image, source_points, target_points)
 
 
 def predict(oct_input_image_path, predictor, weights_path, vhist = True):
@@ -50,23 +52,33 @@ def predict(oct_input_image_path, predictor, weights_path, vhist = True):
         # else:
         # print(f"{oct_input_image_path} is sheered, I can only segment full rectangular shapes.")
         # return None,None, None
+    # top glowing layer workaround:
+    # oct_image = oct_image[200:,:,:]
+    pass
     # OCT image's pixel size
     microns_per_pixel_z = 1
     microns_per_pixel_x = 1
-
+    # for good input points, we need the gel masked out.
+    rescaled = gray_level_rescale(oct_image)
+    masked_gel_image = mask_gel_and_low_signal(oct_image)
+    y_center = get_y_center_of_tissue(masked_gel_image)
     # no need to crop - the current folder contains pre cropped images.
-    cropped, crop_args =  crop_oct(oct_image)
+    cropped, crop_args =  crop_oct(rescaled, y_center)
 
-    # workaround: for some reason the images look close to the target shape, but not exactly.
-    #oct_image = cv2.resize(cropped, [1024, 512], interpolation=cv2.INTER_AREA)
-    oct_image = cropped
+    # Calculate the histogram
+    # histogram = cv2.calcHist([cropped], [0], None, [256], [0, 256])
+
+    # Plot the histogram
+    # plt.plot(histogram)
+    # plt.title('Grayscale Image Histogram')
+    # plt.xlabel('Pixel Value')
+    # plt.ylabel('Frequency')
+    # plt.show()
 
     if vhist:
-        # for good input points, we need the gel masked out.
-        masked_gel_image = mask_gel_and_low_signal(oct_image)
 
         # run vh&e
-        virtual_histology_image, _, o2h_input = oct2hist.run_network(oct_image,
+        virtual_histology_image, _, o2h_input = oct2hist.run_network(cropped,
                                                                      microns_per_pixel_x=microns_per_pixel_x,
                                                                      microns_per_pixel_z=microns_per_pixel_z)
         # mask
@@ -77,7 +89,13 @@ def predict(oct_input_image_path, predictor, weights_path, vhist = True):
         #                                          multimask_output=False, )
         segmentation = run_gui_segmentation(virtual_histology_image, weights_path)
     else:
-        segmentation = run_gui_segmentation(oct_image, weights_path)
+        segmentation = run_gui_segmentation(cropped, weights_path)
         masked_gel_image = None
 
     return segmentation, masked_gel_image, crop_args
+
+
+def get_y_center_of_tissue(oct_image):
+    non_zero_coords = np.column_stack(np.where(oct_image > 0))
+    center_y = np.mean(non_zero_coords[:, 0])
+    return center_y

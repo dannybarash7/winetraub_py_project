@@ -33,7 +33,7 @@ def mask_image_gel(img, min_signal_threshold=np.nan):
   # Input checks and input image conversion
   assert(img.dtype == np.uint8)
   float_img = img.astype(np.float64)/255.0
-  float_img[img==0] = np.nan # Treat 0 as NaN
+  #float_img[img==0] = np.nan # Treat 0 as NaN
 
   # We smooth input image and compute the filter on the smooth version to prevent sharp edges
   filt_img = smooth(float_img)
@@ -151,10 +151,14 @@ def find_min_signal(filt_img):
 
 def find_min_gel_signal(filt_img):
   # Average over x axis (rows) to get one value for each depth
-  m_mean = np.nanmean(filt_img[:, :, 0], axis=1)
-  # Then we figure out what is the "brightest" row by taking percentile:
-  m_mean_max = np.percentile(m_mean, 99, axis=0)
-  m_mean_min = np.mean(m_mean[:20])
+  h,w,c = filt_img.shape
+  top = int(h/2)
+  top_half_mean = np.nanmean(filt_img[:top, :, 0], axis=1)
+  # Then we figure out what is the "brightest" row by taking percentile of top rows:
+
+  m_mean_max = np.percentile(top_half_mean, 99, axis=0)
+  # Then we figure out what is the average intensity level of air, by examining the top 50 rows of OCT image
+  m_mean_min = np.mean(top_half_mean[:50])
   # Finally we define a threshold for OCT intensity, anything below that will be blacked out
   minSignal = 0.28 * (m_mean_max - m_mean_min) + m_mean_min
   return minSignal
@@ -329,12 +333,13 @@ def mask_gel_and_low_signal(oct_image,
                 apply_gray_level_scaling=True,
                 ):
 
+
   if apply_gray_level_scaling:
-    oct_image = gray_level_rescale(oct_image)
+    rescaled = gray_level_rescale(oct_image)
   else:
-    oct_image = oct_image
+    rescaled = oct_image
 
   # Mask
-  masked_image, *_ = mask_image_gel(oct_image, min_signal_threshold=min_signal_threshold)
+  masked_image, *_ = mask_image_gel(rescaled, min_signal_threshold=min_signal_threshold)
 
   return masked_image
