@@ -6,6 +6,7 @@ cd weights
 cd ..  
 conda deactivate  
 conda env create -n vhist_segment --file=requirements.yml    
+pip install -r requirements.txt
 raw_oct_dataset_dir = "GoogleDrive/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
 conda activate vhist_segment  
 
