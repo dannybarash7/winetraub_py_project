@@ -305,12 +305,13 @@ def get_sam_input_points(no_gel_filt_img, virtual_histology_image = None):
 # visualize
 def show_mask(mask, ax, random_color=False):
     if random_color:
-        color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
+        color = np.concatenate([np.random.random(3), np.array([1])], axis=0)
     else:
-        color = np.array([30 / 255, 144 / 255, 255 / 255, 0.6])
+        color = np.array([30 / 255, 144 / 255, 255 / 255, 1])
     h, w = mask.shape[-2:]
     mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
     ax.imshow(mask_image)
+    return color
 
 if __name__ == '__main__':
   o2h_input = oct_get_image_and_preprocess("/Users/dannybarash/Code/oct/OCT2Hist_UseModel/baseline_input.tiff")

@@ -14,6 +14,7 @@ To get started,
 """
 import sys
 import torch
+from matplotlib.patches import Patch
 from segment_anything import sam_model_registry, SamPredictor
 from tqdm import tqdm
 from OCT2Hist_UseModel.utils.masking import get_sam_input_points, show_points, show_mask, mask_gel_and_low_signal
@@ -42,7 +43,6 @@ annot_dataset_dir = "zero_shot_segmentation/11/16/2023-Zero-shot-OCT-3/test"
 raw_oct_dataset_dir = "GoogleDrive/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
 real_histology_dir = raw_oct_dataset_dir
 
-weights/sam_vit_h_4b8939.pth
 #roboflow semantic classes
 EPIDERMIS = True #mask values for epidermis mask
 
@@ -98,19 +98,24 @@ sam = sam_model_registry[MODEL_TYPE](checkpoint=CHECKPOINT_PATH).to(device=DEVIC
 predictor = SamPredictor(sam)
 
 
-total_iou = 0
-total_samples = 0
+total_iou_vhist = 0
+total_samples_vhist = 0
 
 # Get the list of image files
 image_files = [f for f in os.listdir(annot_dataset_dir) if f.endswith(".jpg")]
-#image_files = image_files[1:2] #image_files[:2] #
-total_iou = {EPIDERMIS:0}  # DERMIS:0 , # IOU for each class
+image_files = image_files[1:2]
+total_iou_vhist = {EPIDERMIS:0}  # DERMIS:0 , # IOU for each class
 total_iou_oct = {EPIDERMIS:0}
-total_samples = 0
+total_samples_vhist = 0
+total_samples_oct = 0
 path_to_annotations = os.path.join(annot_dataset_dir, "_annotations.coco.json")
 from pylabel import importer
 dataset = importer.ImportCoco(path_to_annotations, path_to_images=annot_dataset_dir, name="zero_shot_oct")
-visualize = False
+visualize_input_gt = False
+visualize_pred_vs_gt_vhist = True
+visualize_pred_vs_gt_oct = True
+
+
 segment_oct = True
 segment_real_hist = False
 for image_file in tqdm(image_files):
@@ -119,12 +124,12 @@ for image_file in tqdm(image_files):
     oct_img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     coco_mask = dataset.df.ann_segmentation[dataset.df.img_filename == image_file].values[0][0]
     mask_true = coco_mask_to_numpy(oct_img.shape, coco_mask)
-    if visualize:
+    if visualize_input_gt:
         plt.figure(figsize=(5, 5))
         plt.imshow(oct_img, cmap = "gray")
         show_mask(mask_true, plt.gca())
         plt.axis('off')
-        plt.title(f"Input oct and annotation: {image_file}")
+        plt.title(f"Input oct and ground truth mask:")
         plt.show()
 
 
@@ -147,30 +152,51 @@ for image_file in tqdm(image_files):
     cropped_mask_gt = crop(mask_true, **crop_args)
     cropped_oct_image = crop(oct_img, **crop_args)
     from PIL import Image
-
-    if visualize:
+    # Calculate IoU for each class# DERMIS
+    epidermis_iou_vhist = calculate_iou(cropped_mask_gt, mask, EPIDERMIS)
+    total_iou_vhist[EPIDERMIS] += epidermis_iou_vhist
+    total_samples_vhist += 1
+    if visualize_pred_vs_gt_vhist:
         plt.figure(figsize=(5, 5))
         plt.imshow(cropped_oct_image, cmap = "gray")
-        show_mask(mask, plt.gca())
-        show_mask(cropped_mask_gt, plt.gca(), random_color=True)
+        c1 = show_mask(mask, plt.gca())
+        c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True)
         plt.axis('off')
-        plt.title(f"Cropped oct and segmentation: {image_file}")
+        plt.title(f"oct and vhist segmentation: iou {epidermis_iou_vhist:.2f}")
+        # Add a legend
+        legend_elements = [
+            Patch(color=c1, alpha=1, label='Yours'),
+            Patch(color=c2, alpha=1, label='GT'),
+        ]
+        plt.legend(handles=legend_elements)
+
         plt.show()
 
-    # Calculate IoU for each class
-    for class_id in [EPIDERMIS]: # DERMIS
-        epidermis_iou_vhist = calculate_iou(cropped_mask_gt, mask, class_id)
-        if segment_oct:
-            epidermis_iou_oct = calculate_iou(cropped_mask_gt, oct_mask, class_id)
-            total_iou_oct[class_id] += epidermis_iou_oct
-        total_iou[class_id] += epidermis_iou_vhist
 
-    total_samples += 1
+    if segment_oct:
+        epidermis_iou_oct = calculate_iou(cropped_mask_gt, oct_mask, EPIDERMIS)
+        total_iou_oct[EPIDERMIS] += epidermis_iou_oct
+
+        if visualize_pred_vs_gt_oct:
+            plt.figure(figsize=(5, 5))
+            plt.imshow(cropped_oct_image, cmap="gray")
+            c1 = show_mask(oct_mask, plt.gca())
+            c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True)
+            plt.axis('off')
+            plt.title(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}")
+            legend_elements = [
+                Patch(color=c1, alpha=1, label='Yours'),
+                Patch(color=c2, alpha=1, label='GT'),
+            ]
+            plt.legend(handles=legend_elements)
+            plt.show()
+        total_samples_oct+=1
 
 
 
-average_iou = total_iou[EPIDERMIS] / total_samples #sum all ious divided by (number of images * number of classes).
+
+average_iou = total_iou_vhist[EPIDERMIS] / total_samples_vhist #sum all ious divided by (number of images * number of classes).
 print(f"Average IoU with virtual histology: {average_iou}")
 if segment_oct:
-    average_iou_oct = total_iou_oct[EPIDERMIS] / total_samples
+    average_iou_oct = total_iou_oct[EPIDERMIS] / total_samples_oct
     print(f"Average IoU without virtual histology: {average_iou_oct}")
