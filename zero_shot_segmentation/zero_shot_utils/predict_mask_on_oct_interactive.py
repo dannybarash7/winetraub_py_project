@@ -26,19 +26,31 @@ def warp_image(source_image, source_points, target_points):
 def warp_oct(oct_image):
     margin = 10
     height,width,_ = oct_image.shape
+    mid_row = int(height/2)
     first_row = oct_image[0, :, 0]
     non_zero_indices = np.nonzero(first_row)[0]
     x = [non_zero_indices[0]+margin,0] #0 stands for first row
     y = [non_zero_indices[-1]-margin,0]  #0 stands for first row
-    last_row = oct_image[-1, :, 0]
+    last_row = oct_image[mid_row, :, 0]
     non_zero_indices = np.nonzero(last_row)[0]
-    z = [non_zero_indices[0]+margin,height-1]
-    w = [non_zero_indices[-1]-margin,height-1]
+    z = [non_zero_indices[0]+margin,mid_row]
+    w = [non_zero_indices[-1]-margin,mid_row]
     source_points = np.float32([x,y,z,w])
 
-    target_points = np.float32([[0, 0], [width,0], [0,height-1], [width-1,height-1]])
+    target_points = np.float32([[0, 0], [width,0], [0,mid_row-1], [width-1,mid_row-1]])
     return warp_image(oct_image, source_points, target_points)
 
+
+def is_trapezoid_image(oct_image):
+    margin = 10
+    height, width, _ = oct_image.shape
+    first_row = oct_image[0, :, 0]
+    top_row_first_non_zero_index = np.nonzero(first_row)[0][0]
+    mid_row = int(height / 2)
+    mid_row = oct_image[mid_row, :, 0]
+    mid_row_first_non_zero_index = np.nonzero(mid_row)[0][0]
+    if top_row_first_non_zero_index > margin or mid_row_first_non_zero_index > margin:
+        return True
 
 def predict(oct_input_image_path, predictor, weights_path, vhist = True):
     # Load OCT image
@@ -46,7 +58,7 @@ def predict(oct_input_image_path, predictor, weights_path, vhist = True):
     oct_image = cv2.cvtColor(oct_image, cv2.COLOR_BGR2RGB)
     # is it sheered?
     right_column = oct_image.shape[1] - 1
-    if (oct_image[:, 0, 0] == 0).all() or (oct_image[:, right_column, 0] == 0).all():
+    if is_trapezoid_image(oct_image):
         oct_image = warp_oct(oct_image)
     # top glowing layer workaround:
     if os.path.basename(oct_input_image_path) == 'LF-01-Slide04_Section02-Fig-3-d-_jpeg.rf.686dda2850b99806206cb905623f33a7.jpg':
@@ -58,6 +70,7 @@ def predict(oct_input_image_path, predictor, weights_path, vhist = True):
     rescaled = gray_level_rescale(oct_image)
     masked_gel_image = mask_gel_and_low_signal(oct_image)
     y_center = get_y_center_of_tissue(masked_gel_image)
+    y_center = y_center * (2/3)
     # no need to crop - the current folder contains pre cropped images.
     cropped, crop_args =  crop_oct(rescaled, y_center)
 

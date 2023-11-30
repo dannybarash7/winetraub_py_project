@@ -22,8 +22,13 @@ def crop(input_image, target_width=1024, target_height=512, x0=0, z0=0):
     return cropped_image_padded
 
 def find_crop_coords(input_image, y_center): #left top corner
-    x0 = 200  # @param {type:"slider", min:0, max:1000, step:10}
-    z0 = 110  # @param {type:"slider", min:0, max:1000, step:10}
+    input_height, input_width = input_image.shape[:2]
+    x0 = int(max(input_width/2 - 1024/2,0))
+    z0 = int(max(y_center - 512/2,0))
+
+
+    # x0 = 200  # @param {type:"slider", min:0, max:1000, step:10}
+    # z0 = 110  # @param {type:"slider", min:0, max:1000, step:10}
     target_width = 1024
     target_height = 512
     return target_width, target_height, x0, z0

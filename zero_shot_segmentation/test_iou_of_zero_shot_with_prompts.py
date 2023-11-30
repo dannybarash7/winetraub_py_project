@@ -33,11 +33,11 @@ import os
 # Define the Roboflow project URL and API key
 rf_api_key= "R04BinsZcBZ6PsfKR2fP"
 rf_workspace= "yolab-kmmfx"
-rf_project_name = "11-24-2023-zero-shot"
+rf_project_name = "11-16-2023-zero-shot-oct"
 rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
-version = 1
+version = 3
 CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
-annot_dataset_dir = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/zero_shot_segmentation/11/24/2023-zero-shot-1/test"
+annot_dataset_dir = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/zero_shot_segmentation/11/16/2023-Zero-shot-OCT-3/test"
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
 real_histology_dir = raw_oct_dataset_dir
 
@@ -103,7 +103,6 @@ total_samples = 0
 # Get the list of image files
 image_files = [f for f in os.listdir(annot_dataset_dir) if f.endswith(".jpg")]
 #image_files = image_files[1:2] #image_files[:2] #
-#image_files = image_files[1:2]
 total_iou = {EPIDERMIS:0}  # DERMIS:0 , # IOU for each class
 total_iou_oct = {EPIDERMIS:0}
 total_samples = 0
@@ -127,11 +126,12 @@ for image_file in tqdm(image_files):
         plt.title(f"Input oct and annotation: {image_file}")
         plt.show()
 
-    # Predict the mask using your model
-    mask, masked_gel_image, crop_args = predict(image_path, predictor, weights_path = CHECKPOINT_PATH)
 
     if segment_oct:
         oct_mask, _, crop_args = predict(image_path, predictor, weights_path=CHECKPOINT_PATH, vhist=False)
+
+    mask, masked_gel_image, crop_args = predict(image_path, predictor, weights_path = CHECKPOINT_PATH)
+
 
     # if segment_real_hist:
     #     image_path = os.path.join(real_histology_dir, image_file)

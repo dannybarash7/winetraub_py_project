@@ -33,7 +33,7 @@ def mask_image_gel(img, min_signal_threshold=np.nan):
   # Input checks and input image conversion
   assert(img.dtype == np.uint8)
   float_img = img.astype(np.float64)/255.0
-  float_img[img==0] = np.nan # Treat 0 as NaN
+  float_img[img==0] = np.nan # Treat 0 as NaN, important for proper vhist
 
   # We smooth input image and compute the filter on the smooth version to prevent sharp edges
   filt_img = smooth(float_img)
@@ -335,7 +335,7 @@ def mask_gel_and_low_signal(oct_image,
 
 
   if apply_gray_level_scaling:
-    rescaled = gray_level_rescale(oct_image)
+    rescaled = gray_level_rescale(oct_image) #gray_level_rescale_v2(oct_image)
   else:
     rescaled = oct_image
 
