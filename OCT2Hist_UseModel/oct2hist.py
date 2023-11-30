@@ -8,7 +8,7 @@ import numpy as np
 
 # Run this function to set up the Neural Network with Pre-trained oct2hist generator network
 def setup_network():
-  pix2pix.setup_network("/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/OCT2Hist_UseModel/pytorch_CycleGAN_and_pix2pix/checkpoints/segment_skin/latest_net_G.pth","oct2hist")
+  pix2pix.setup_network("OCT2Hist_UseModel/pytorch_CycleGAN_and_pix2pix/checkpoints/segment_skin/latest_net_G.pth","oct2hist")
 
 # This function evaluates the neural network on input image
 # Inputs:

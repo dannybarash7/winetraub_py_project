@@ -69,7 +69,7 @@ filtered_images = filtered_images[:10]
 DEVICE = torch.device('mps') #'cpu'
 MODEL_TYPE = "vit_h"
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
-CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/weights/sam_vit_h_4b8939.pth" # os.path.join("weights", "sam_vit_h_4b8939.pth")
+CHECKPOINT_PATH = "weights/sam_vit_h_4b8939.pth" # os.path.join("weights", "sam_vit_h_4b8939.pth")
 sam = sam_model_registry[MODEL_TYPE](checkpoint=CHECKPOINT_PATH).to(device=DEVICE)
 s = SegmentSkinInHEImages(sam)
 for image_path in filtered_images:

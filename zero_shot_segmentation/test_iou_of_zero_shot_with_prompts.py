@@ -36,12 +36,13 @@ rf_workspace= "yolab-kmmfx"
 rf_project_name = "11-16-2023-zero-shot-oct"
 rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
 version = 3
-CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
-annot_dataset_dir = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/zero_shot_segmentation/11/16/2023-Zero-shot-OCT-3/test"
-raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
+CHECKPOINT_PATH = "weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+annot_dataset_dir = "zero_shot_segmentation/11/16/2023-Zero-shot-OCT-3/test"
+#TODO: change this:
+raw_oct_dataset_dir = "GoogleDrive/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
 real_histology_dir = raw_oct_dataset_dir
 
-
+weights/sam_vit_h_4b8939.pth
 #roboflow semantic classes
 EPIDERMIS = True #mask values for epidermis mask
 
