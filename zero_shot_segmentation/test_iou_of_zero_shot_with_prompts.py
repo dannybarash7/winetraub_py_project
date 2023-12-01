@@ -90,7 +90,7 @@ def calculate_iou(mask_true, mask_pred, class_id):
 
 
 # Download images and masks
-dataset = download_images_and_masks(rf_api_key, rf_workspace, rf_project_name, rf_dataset_type, version)
+#dataset = download_images_and_masks(rf_api_key, rf_workspace, rf_project_name, rf_dataset_type, version)
 # prepare model
 DEVICE = torch.device('mps')  # 'cpu'
 MODEL_TYPE = "vit_h"
@@ -103,7 +103,7 @@ total_samples_vhist = 0
 
 # Get the list of image files
 image_files = [f for f in os.listdir(annot_dataset_dir) if f.endswith(".jpg")]
-image_files = image_files[1:2]
+# image_files = image_files[1:2]
 total_iou_vhist = {EPIDERMIS:0}  # DERMIS:0 , # IOU for each class
 total_iou_oct = {EPIDERMIS:0}
 total_samples_vhist = 0
@@ -112,8 +112,8 @@ path_to_annotations = os.path.join(annot_dataset_dir, "_annotations.coco.json")
 from pylabel import importer
 dataset = importer.ImportCoco(path_to_annotations, path_to_images=annot_dataset_dir, name="zero_shot_oct")
 visualize_input_gt = False
-visualize_pred_vs_gt_vhist = True
-visualize_pred_vs_gt_oct = True
+visualize_pred_vs_gt_vhist = False
+visualize_pred_vs_gt_oct = False
 
 
 segment_oct = True

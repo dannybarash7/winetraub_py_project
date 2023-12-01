@@ -241,4 +241,5 @@ class Segmenter():
 
 def run_gui_segmentation(img, weights_path):
     segmenter = run_gui(img, weights_path)
+    segmenter.global_masks[segmenter.global_masks>0]=1
     return segmenter.global_masks
