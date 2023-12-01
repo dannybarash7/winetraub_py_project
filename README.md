@@ -7,7 +7,7 @@ cd ..
 conda deactivate  
 conda env create -n vhist_segment --file=requirements.yml 
 conda activate vhist_segment  
-pip3 install -r requirements.txt  
+pip3 install -r pip_requirements.txt  
 raw_oct_dataset_dir = "GoogleDrive/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"  
 
 update "raw_oct_dataset_dir", in test_iou_of_zero_shot_with_prompts.py, to point to the local oct scans dir.  
