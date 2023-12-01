@@ -112,8 +112,8 @@ path_to_annotations = os.path.join(annot_dataset_dir, "_annotations.coco.json")
 from pylabel import importer
 dataset = importer.ImportCoco(path_to_annotations, path_to_images=annot_dataset_dir, name="zero_shot_oct")
 visualize_input_gt = False
-visualize_pred_vs_gt_vhist = False
-visualize_pred_vs_gt_oct = False
+visualize_pred_vs_gt_vhist = True
+visualize_pred_vs_gt_oct = True
 
 
 segment_oct = True
