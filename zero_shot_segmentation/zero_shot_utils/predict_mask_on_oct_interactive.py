@@ -99,9 +99,9 @@ def predict(oct_input_image_path, predictor, weights_path, vhist = True):
         segmentation, points_used = run_gui_segmentation(virtual_histology_image, weights_path)
     else:
         segmentation, points_used = run_gui_segmentation(cropped, weights_path)
-        masked_gel_image = None
+        virtual_histology_image = None
 
-    return segmentation, masked_gel_image, crop_args, points_used
+    return segmentation, virtual_histology_image, crop_args, points_used
 
 
 def get_y_center_of_tissue(oct_image):

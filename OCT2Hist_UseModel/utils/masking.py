@@ -52,6 +52,7 @@ def mask_image_gel(img, min_signal_threshold=np.nan):
   boolean_mask = ~((filt_img == 0.0) | np.isnan(filt_img))
   # Apply filter on original image and convert to output format
   float_img = float_img * boolean_mask
+  # RuntimeWarning: invalid value encountered in cast
   img = (float_img*255).astype(np.uint8)
   return img, boolean_mask, min_signal_threshold
 
@@ -165,6 +166,8 @@ def find_min_gel_signal(filt_img):
 
 def get_rows_min_max(filt_img):
   # Average over x axis (rows) to get one value for each depth
+  #"RuntimeWarning: Mean of empty slice": because there are lines full with nans,
+  filt_img = np.nan_to_num(deepcopy(filt_img))
   m_mean = np.nanmean(filt_img[:,:,0], axis=1)
   # Then we figure out what is the "brightest" row by taking percentile:
   m_mean_max = np.percentile(m_mean, 99, axis=0)

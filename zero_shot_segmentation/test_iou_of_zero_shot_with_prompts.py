@@ -94,6 +94,16 @@ def make_mask_drawable(mask):
     mask[mask == 1] = 255
     return mask
 
+def extract_filename_prefix(filename):
+    # Split the filename based on the dot ('.') and take the first part
+    prefix = filename.split('.')[0]
+
+    # Remove the "_jpg" part if it exists
+    if prefix.endswith('_jpg'):
+        prefix = prefix[:-4]
+
+    return prefix
+
 # Download images and masks
 #dataset = download_images_and_masks(rf_api_key, rf_workspace, rf_project_name, rf_dataset_type, version)
 # prepare model
@@ -119,11 +129,16 @@ dataset = importer.ImportCoco(path_to_annotations, path_to_images=annot_dataset_
 visualize_input_gt = True
 visualize_pred_vs_gt_vhist = True
 visualize_pred_vs_gt_oct = True
-
+visualize_pred_over_vhist = True
+visualize_input_vhist = True
+output_image_dir = "./images"
+if not os.path.exists(output_image_dir):
+    os.makedirs(output_image_dir)
 
 segment_oct = True
 segment_real_hist = False
 for image_file in tqdm(image_files):
+    image_name = extract_filename_prefix(image_file)
     gt_image_path = os.path.join(raw_oct_dataset_dir, image_file)
     image_path = os.path.join(annot_dataset_dir, image_file)
     oct_img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
@@ -134,14 +149,24 @@ for image_file in tqdm(image_files):
         plt.imshow(oct_img, cmap = "gray")
         show_mask(mask_true, plt.gca())
         plt.axis('off')
-        plt.title(f"Input oct and ground truth mask:")
-        plt.show()
+        plt.suptitle(f"Input oct and ground truth mask")
+        plt.title(f"{image_name}")
+        plt.savefig(f'{os.path.join(output_image_dir,image_name)}_input_gt.png')
+        plt.close()
 
+    mask, virtual_histology_image, crop_args, n_points_used = predict(image_path, predictor, weights_path = CHECKPOINT_PATH)
+    cropped_mask_gt = crop(mask_true, **crop_args)
 
-    if segment_oct:
-        oct_mask, _, crop_args, points_used = predict(image_path, predictor, weights_path=CHECKPOINT_PATH, vhist=False)
-
-    mask, masked_gel_image, crop_args, points_used = predict(image_path, predictor, weights_path = CHECKPOINT_PATH)
+    if visualize_input_vhist:
+        cropped_vhist = crop(virtual_histology_image, **crop_args)
+        plt.figure(figsize=(5, 5))
+        plt.imshow(cropped_vhist)
+        show_mask(cropped_mask_gt, plt.gca())
+        plt.axis('off')
+        plt.suptitle(f"Input vhist and ground truth mask")
+        plt.title(f"name {image_name}")
+        plt.savefig(f'{os.path.join(output_image_dir,image_name)}_input_vhist.png')
+        plt.close()
 
 
     # if segment_real_hist:
@@ -154,30 +179,51 @@ for image_file in tqdm(image_files):
     mask[mask==1] = True
     mask[mask == 0] = False
     #mask_pred = cv2.resize(mask_pred, (mask_true.shape[1], mask_true.shape[0]), interpolation =  cv2.INTER_NEAREST)
-    cropped_mask_gt = crop(mask_true, **crop_args)
     cropped_oct_image = crop(oct_img, **crop_args)
-    from PIL import Image
     # Calculate IoU for each class# DERMIS
     epidermis_iou_vhist = calculate_iou(cropped_mask_gt, mask, EPIDERMIS)
     total_iou_vhist[EPIDERMIS] += epidermis_iou_vhist
     total_samples_vhist += 1
-    if visualize_pred_vs_gt_vhist:
+
+    if visualize_pred_over_vhist:
         plt.figure(figsize=(5, 5))
-        plt.imshow(cropped_oct_image, cmap = "gray")
+        plt.imshow(virtual_histology_image)
         c1 = show_mask(mask, plt.gca())
         c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True)
         plt.axis('off')
-        plt.title(f"oct and vhist segmentation: iou {epidermis_iou_vhist:.2f}")
+        plt.suptitle(f"vhist segmentation: iou {epidermis_iou_vhist:.2f}, {n_points_used} clicks")
+        plt.title(f"{image_name}")
         # Add a legend
         legend_elements = [
             Patch(color=c1, alpha=1, label='Yours'),
             Patch(color=c2, alpha=1, label='GT'),
         ]
         plt.legend(handles=legend_elements)
-        plt.show()
+        plt.savefig(f'{os.path.join(output_image_dir, image_name)}_vhist_pred.png')
+        plt.close()
+
+    if visualize_pred_vs_gt_vhist:
+        plt.figure(figsize=(5, 5))
+        plt.imshow(cropped_oct_image, cmap = "gray")
+        c1 = show_mask(mask, plt.gca())
+        c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True)
+        plt.axis('off')
+        plt.suptitle(f"oct and vhist segmentation: iou {epidermis_iou_vhist:.2f}, {n_points_used} clicks")
+        plt.title(f"{image_name}")
+        # Add a legend
+        legend_elements = [
+            Patch(color=c1, alpha=1, label='Yours'),
+            Patch(color=c2, alpha=1, label='GT'),
+        ]
+        plt.legend(handles=legend_elements)
+        plt.savefig(f'{os.path.join(output_image_dir, image_name)}_oct_pred_with_vhist.png')
+        plt.close()
 
 
     if segment_oct:
+        oct_mask, _, crop_args, n_points_used = predict(image_path, predictor, weights_path=CHECKPOINT_PATH,
+                                                            vhist=False)
+
         epidermis_iou_oct = calculate_iou(cropped_mask_gt, oct_mask, EPIDERMIS)
         total_iou_oct[EPIDERMIS] += epidermis_iou_oct
 
@@ -187,13 +233,15 @@ for image_file in tqdm(image_files):
             c1 = show_mask(oct_mask, plt.gca())
             c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True)
             plt.axis('off')
-            plt.title(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}")
+            plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}, {n_points_used} clicks")
+            plt.title(f"{image_name}")
             legend_elements = [
                 Patch(color=c1, alpha=1, label='Yours'),
                 Patch(color=c2, alpha=1, label='GT'),
             ]
             plt.legend(handles=legend_elements)
-            plt.show()
+            plt.savefig(f'{os.path.join(output_image_dir, image_name)}_pred_wo_vhist.png')
+            plt.close()
         total_samples_oct+=1
 
 
