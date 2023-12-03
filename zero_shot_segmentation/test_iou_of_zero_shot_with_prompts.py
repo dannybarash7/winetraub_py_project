@@ -152,15 +152,14 @@ for image_file in tqdm(image_files):
         plt.suptitle(f"Input oct and ground truth mask")
         plt.title(f"{image_name}")
         plt.savefig(f'{os.path.join(output_image_dir,image_name)}_input_gt.png')
-        plt.close()
+        plt.close('all')
 
     mask, virtual_histology_image, crop_args, n_points_used = predict(image_path, predictor, weights_path = CHECKPOINT_PATH)
     cropped_mask_gt = crop(mask_true, **crop_args)
 
     if visualize_input_vhist:
-        cropped_vhist = crop(virtual_histology_image, **crop_args)
         plt.figure(figsize=(5, 5))
-        plt.imshow(cropped_vhist)
+        plt.imshow(virtual_histology_image)
         show_mask(cropped_mask_gt, plt.gca())
         plt.axis('off')
         plt.suptitle(f"Input vhist and ground truth mask")
