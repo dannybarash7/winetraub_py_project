@@ -17,7 +17,11 @@ def crop(input_image, target_width=1024, target_height=512, x0=0, z0=0):
         pad_width = ((0, max(0, target_height - (z1 - z0))), (0, max(0, target_width - (x1 - x0))), (0, 0))
     if len(input_image.shape) == 2:
         pad_width = ((0, max(0, target_height - (z1 - z0))), (0, max(0, target_width - (x1 - x0))))
-    cropped_image_padded = np.pad(cropped_image, pad_width, mode='constant', constant_values=np.nan)
+    if input_image.dtype == bool:
+        fill_value = False
+    else:
+        fill_value = 0
+    cropped_image_padded = np.pad(cropped_image, pad_width, mode='constant', constant_values=fill_value)
 
     return cropped_image_padded
 

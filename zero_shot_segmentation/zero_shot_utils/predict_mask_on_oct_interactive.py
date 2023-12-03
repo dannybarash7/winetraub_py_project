@@ -96,12 +96,12 @@ def predict(oct_input_image_path, predictor, weights_path, vhist = True):
         # predictor.set_image(virtual_histology_image)
         # masks, scores, logits = predictor.predict(point_coords=input_point, point_labels=input_label,
         #                                          multimask_output=False, )
-        segmentation = run_gui_segmentation(virtual_histology_image, weights_path)
+        segmentation, points_used = run_gui_segmentation(virtual_histology_image, weights_path)
     else:
-        segmentation = run_gui_segmentation(cropped, weights_path)
+        segmentation, points_used = run_gui_segmentation(cropped, weights_path)
         masked_gel_image = None
 
-    return segmentation, masked_gel_image, crop_args
+    return segmentation, masked_gel_image, crop_args, points_used
 
 
 def get_y_center_of_tissue(oct_image):

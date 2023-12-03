@@ -88,6 +88,11 @@ def calculate_iou(mask_true, mask_pred, class_id):
     class_iou = np.sum(intersection) / np.sum(union)
     return class_iou
 
+    mask_pred_bool = mask_pred.astype(bool)
+def make_mask_drawable(mask):
+    mask = mask.astype(np.uint8)
+    mask[mask == 1] = 255
+    return mask
 
 # Download images and masks
 #dataset = download_images_and_masks(rf_api_key, rf_workspace, rf_project_name, rf_dataset_type, version)
@@ -111,7 +116,7 @@ total_samples_oct = 0
 path_to_annotations = os.path.join(annot_dataset_dir, "_annotations.coco.json")
 from pylabel import importer
 dataset = importer.ImportCoco(path_to_annotations, path_to_images=annot_dataset_dir, name="zero_shot_oct")
-visualize_input_gt = False
+visualize_input_gt = True
 visualize_pred_vs_gt_vhist = True
 visualize_pred_vs_gt_oct = True
 
@@ -134,9 +139,9 @@ for image_file in tqdm(image_files):
 
 
     if segment_oct:
-        oct_mask, _, crop_args = predict(image_path, predictor, weights_path=CHECKPOINT_PATH, vhist=False)
+        oct_mask, _, crop_args, points_used = predict(image_path, predictor, weights_path=CHECKPOINT_PATH, vhist=False)
 
-    mask, masked_gel_image, crop_args = predict(image_path, predictor, weights_path = CHECKPOINT_PATH)
+    mask, masked_gel_image, crop_args, points_used = predict(image_path, predictor, weights_path = CHECKPOINT_PATH)
 
 
     # if segment_real_hist:
@@ -169,7 +174,6 @@ for image_file in tqdm(image_files):
             Patch(color=c2, alpha=1, label='GT'),
         ]
         plt.legend(handles=legend_elements)
-
         plt.show()
 
 
