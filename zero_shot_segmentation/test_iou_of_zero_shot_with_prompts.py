@@ -138,7 +138,7 @@ if not os.path.exists(output_image_dir):
 segment_oct = True
 segment_real_hist = False
 for image_file in tqdm(image_files):
-    if not extract_filename_prefix(image_file) == "LG-72-Slide06_Section03_yp0_A":
+    if not extract_filename_prefix(image_file).startswith("LG-81-Slide06_Section02"):
         continue
     image_name = extract_filename_prefix(image_file)
     gt_image_path = os.path.join(raw_oct_dataset_dir, image_file)
