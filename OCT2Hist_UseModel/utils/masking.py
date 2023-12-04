@@ -306,12 +306,13 @@ def get_sam_input_points(no_gel_filt_img, virtual_histology_image = None):
 
 
 # visualize
-def show_mask(mask, ax, random_color=False, alpha = 0.6):
+def show_mask(mask, ax, random_color=False, alpha = 0.6, ):
 
     if random_color:
         color = np.concatenate([np.random.random(3), np.array([alpha])], axis=0)
+        color = np.array([8 / 255, 255 / 255, 128 / 255, alpha])
     else:
-        color = np.array([30 / 255, 144 / 255, 255 / 255, alpha])
+        color = np.array([0 / 255, 128 / 255, 255 / 255, alpha])
     h, w = mask.shape[-2:]
     mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
     ax.imshow(mask_image)

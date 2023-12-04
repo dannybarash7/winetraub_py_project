@@ -138,6 +138,8 @@ if not os.path.exists(output_image_dir):
 segment_oct = True
 segment_real_hist = False
 for image_file in tqdm(image_files):
+    if not extract_filename_prefix(image_file) == "LG-72-Slide06_Section03_yp0_A":
+        continue
     image_name = extract_filename_prefix(image_file)
     gt_image_path = os.path.join(raw_oct_dataset_dir, image_file)
     image_path = os.path.join(annot_dataset_dir, image_file)
@@ -147,7 +149,7 @@ for image_file in tqdm(image_files):
     if visualize_input_gt:
         plt.figure(figsize=(5, 5))
         plt.imshow(oct_img, cmap = "gray")
-        show_mask(mask_true, plt.gca())
+        show_mask(mask_true, plt.gca(), alpha=0.3)
         plt.axis('off')
         plt.suptitle(f"Input oct and ground truth mask")
         plt.title(f"{image_name}")
@@ -160,7 +162,7 @@ for image_file in tqdm(image_files):
     if visualize_input_vhist:
         plt.figure(figsize=(5, 5))
         plt.imshow(virtual_histology_image)
-        show_mask(cropped_mask_gt, plt.gca())
+        show_mask(cropped_mask_gt, plt.gca(), alpha = 0.6)
         plt.axis('off')
         plt.suptitle(f"Input vhist and ground truth mask")
         plt.title(f"name {image_name}")
@@ -188,7 +190,7 @@ for image_file in tqdm(image_files):
         plt.figure(figsize=(5, 5))
         plt.imshow(virtual_histology_image)
         c1 = show_mask(mask, plt.gca())
-        c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True)
+        c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True, alpha = 0.6)
         plt.axis('off')
         plt.suptitle(f"vhist segmentation: iou {epidermis_iou_vhist:.2f}, {n_points_used} clicks")
         plt.title(f"{image_name}")
@@ -205,7 +207,7 @@ for image_file in tqdm(image_files):
         plt.figure(figsize=(5, 5))
         plt.imshow(cropped_oct_image, cmap = "gray")
         c1 = show_mask(mask, plt.gca())
-        c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True)
+        c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True, alpha = 0.2)
         plt.axis('off')
         plt.suptitle(f"oct and vhist segmentation: iou {epidermis_iou_vhist:.2f}, {n_points_used} clicks")
         plt.title(f"{image_name}")
@@ -230,7 +232,7 @@ for image_file in tqdm(image_files):
             plt.figure(figsize=(5, 5))
             plt.imshow(cropped_oct_image, cmap="gray")
             c1 = show_mask(oct_mask, plt.gca())
-            c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True)
+            c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True, alpha = 0.2)
             plt.axis('off')
             plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}, {n_points_used} clicks")
             plt.title(f"{image_name}")
