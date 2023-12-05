@@ -4,7 +4,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-from OCT2Hist_UseModel.utils.crop import crop_oct
+from OCT2Hist_UseModel.utils.crop import crop_oct, crop
 from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale
 from OCT2Hist_UseModel.utils.masking import get_sam_input_points, show_points, show_mask, mask_gel_and_low_signal
 from OCT2Hist_UseModel import oct2hist
@@ -52,7 +52,7 @@ def is_trapezoid_image(oct_image):
     if top_row_first_non_zero_index > margin or mid_row_first_non_zero_index > margin:
         return True
 
-def predict(oct_input_image_path, predictor, weights_path, vhist = True):
+def predict(oct_input_image_path, predictor, weights_path, vhist = True, downsample = True):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
     oct_image = cv2.cvtColor(oct_image, cv2.COLOR_BGR2RGB)
@@ -90,6 +90,11 @@ def predict(oct_input_image_path, predictor, weights_path, vhist = True):
         virtual_histology_image, _, o2h_input = oct2hist.run_network(cropped,
                                                                      microns_per_pixel_x=microns_per_pixel_x,
                                                                      microns_per_pixel_z=microns_per_pixel_z)
+        virtual_histology_image_copy = virtual_histology_image.copy()
+        if downsample:
+            blurred_image = cv2.GaussianBlur(virtual_histology_image, (0, 0), 4)
+            downsampled_image = cv2.resize(blurred_image, (0, 0), fx=0.25, fy=0.25)
+            virtual_histology_image = downsampled_image
         # mask
         # input_point, input_label = get_sam_input_points(masked_gel_image, virtual_histology_image)
         #
@@ -97,11 +102,14 @@ def predict(oct_input_image_path, predictor, weights_path, vhist = True):
         # masks, scores, logits = predictor.predict(point_coords=input_point, point_labels=input_label,
         #                                          multimask_output=False, )
         segmentation, points_used = run_gui_segmentation(virtual_histology_image, weights_path)
+        if downsample:
+            segmentation = cv2.resize(segmentation, (0, 0), fx=4, fy=4)
+
     else:
         segmentation, points_used = run_gui_segmentation(cropped, weights_path)
-        virtual_histology_image = None
+        virtual_histology_image_copy = None
 
-    return segmentation, virtual_histology_image, crop_args, points_used
+    return segmentation, virtual_histology_image_copy, crop_args, points_used
 
 
 def get_y_center_of_tissue(oct_image):

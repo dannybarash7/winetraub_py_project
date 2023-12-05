@@ -13,6 +13,10 @@ To get started,
 [open this notebook in colab](https://colab.research.google.com/github/WinetraubLab/OCT2Hist-ModelInference/blob/main/run_oct2hist.ipynb) and run.
 """
 import sys
+
+import numpy
+import pandas
+import pandas as pd
 import torch
 from matplotlib.patches import Patch
 from segment_anything import sam_model_registry, SamPredictor
@@ -118,7 +122,7 @@ total_samples_vhist = 0
 
 # Get the list of image files
 image_files = [f for f in os.listdir(annot_dataset_dir) if f.endswith(".jpg")]
-# image_files = image_files[1:2]
+image_files = image_files[3:]
 total_iou_vhist = {EPIDERMIS:0}  # DERMIS:0 , # IOU for each class
 total_iou_oct = {EPIDERMIS:0}
 total_samples_vhist = 0
@@ -137,9 +141,15 @@ if not os.path.exists(output_image_dir):
 
 segment_oct = True
 segment_real_hist = False
+index_array = [extract_filename_prefix(file) for file in image_files]
+df = pd.DataFrame({
+    "iou_vhist": numpy.nan,  # Replace with your data for "iou vhist"
+    "iou_oct": numpy.nan     # Replace with your data for "iou oct"
+}, index=index_array)
+
 for image_file in tqdm(image_files):
-    if not extract_filename_prefix(image_file).startswith("LG-81-Slide06_Section02"):
-        continue
+    # if not extract_filename_prefix(image_file).startswith("LG-81-Slide06_Section02"):
+    #     continue
     image_name = extract_filename_prefix(image_file)
     gt_image_path = os.path.join(raw_oct_dataset_dir, image_file)
     image_path = os.path.join(annot_dataset_dir, image_file)
@@ -156,8 +166,35 @@ for image_file in tqdm(image_files):
         plt.savefig(f'{os.path.join(output_image_dir,image_name)}_input_gt.png')
         plt.close('all')
 
+
+    if segment_oct:
+        oct_mask, _, crop_args, n_points_used = predict(image_path, predictor, weights_path=CHECKPOINT_PATH,
+                                                            vhist=False)
+        cropped_mask_gt = crop(mask_true, **crop_args)
+        cropped_oct_image = crop(oct_img, **crop_args)
+
+        epidermis_iou_oct = calculate_iou(cropped_mask_gt, oct_mask, EPIDERMIS)
+        total_iou_oct[EPIDERMIS] += epidermis_iou_oct
+        df.loc[image_name, "iou_oct"] = epidermis_iou_oct
+        if visualize_pred_vs_gt_oct:
+            plt.figure(figsize=(5, 5))
+            plt.imshow(cropped_oct_image, cmap="gray")
+            c1 = show_mask(oct_mask, plt.gca())
+            c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True, alpha = 0.2)
+            plt.axis('off')
+            plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}, {n_points_used} clicks")
+            plt.title(f"{image_name}")
+            legend_elements = [
+                Patch(color=c1, alpha=1, label='Yours'),
+                Patch(color=c2, alpha=1, label='GT'),
+            ]
+            plt.legend(handles=legend_elements)
+            plt.savefig(f'{os.path.join(output_image_dir, image_name)}_pred_wo_vhist.png')
+            plt.close()
+        total_samples_oct+=1
+
     mask, virtual_histology_image, crop_args, n_points_used = predict(image_path, predictor, weights_path = CHECKPOINT_PATH)
-    cropped_mask_gt = crop(mask_true, **crop_args)
+
 
     if visualize_input_vhist:
         plt.figure(figsize=(5, 5))
@@ -183,6 +220,7 @@ for image_file in tqdm(image_files):
     cropped_oct_image = crop(oct_img, **crop_args)
     # Calculate IoU for each class# DERMIS
     epidermis_iou_vhist = calculate_iou(cropped_mask_gt, mask, EPIDERMIS)
+    df.loc[image_name,"iou_vhist"] = epidermis_iou_vhist
     total_iou_vhist[EPIDERMIS] += epidermis_iou_vhist
     total_samples_vhist += 1
 
@@ -221,31 +259,8 @@ for image_file in tqdm(image_files):
         plt.close()
 
 
-    if segment_oct:
-        oct_mask, _, crop_args, n_points_used = predict(image_path, predictor, weights_path=CHECKPOINT_PATH,
-                                                            vhist=False)
 
-        epidermis_iou_oct = calculate_iou(cropped_mask_gt, oct_mask, EPIDERMIS)
-        total_iou_oct[EPIDERMIS] += epidermis_iou_oct
-
-        if visualize_pred_vs_gt_oct:
-            plt.figure(figsize=(5, 5))
-            plt.imshow(cropped_oct_image, cmap="gray")
-            c1 = show_mask(oct_mask, plt.gca())
-            c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True, alpha = 0.2)
-            plt.axis('off')
-            plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}, {n_points_used} clicks")
-            plt.title(f"{image_name}")
-            legend_elements = [
-                Patch(color=c1, alpha=1, label='Yours'),
-                Patch(color=c2, alpha=1, label='GT'),
-            ]
-            plt.legend(handles=legend_elements)
-            plt.savefig(f'{os.path.join(output_image_dir, image_name)}_pred_wo_vhist.png')
-            plt.close()
-        total_samples_oct+=1
-
-
+    df.to_csv(os.path.join(output_image_dir, 'iou_scores.csv'), index=True)
 
 
 average_iou = total_iou_vhist[EPIDERMIS] / total_samples_vhist #sum all ious divided by (number of images * number of classes).
