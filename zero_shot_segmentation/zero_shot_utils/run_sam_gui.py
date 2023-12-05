@@ -22,7 +22,7 @@ def run_gui(img, weights_path):
 
 
 class Segmenter():
-    def __init__(self, img, weights_path, npoints=20):
+    def __init__(self, img, weights_path, npoints=200):
         self.img = img
         self.min_mask_region_area = 500
         self.npoints = npoints

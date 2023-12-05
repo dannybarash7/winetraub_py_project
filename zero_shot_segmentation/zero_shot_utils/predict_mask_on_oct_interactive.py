@@ -21,7 +21,7 @@ def warp_image(source_image, source_points, target_points):
     # Apply the affine transformation to the source image
     warped_image = cv2.warpPerspective(source_image, affine_matrix, (source_image.shape[1], source_image.shape[0]))
 
-    return warped_image
+    return warped_image, affine_matrix
 
 def warp_oct(oct_image):
     margin = 10
@@ -52,17 +52,16 @@ def is_trapezoid_image(oct_image):
     if top_row_first_non_zero_index > margin or mid_row_first_non_zero_index > margin:
         return True
 
-def predict(oct_input_image_path, predictor, weights_path, vhist = True, downsample = True):
+def predict(oct_input_image_path, mask_true, weights_path, vhist = True, downsample = True):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
     oct_image = cv2.cvtColor(oct_image, cv2.COLOR_BGR2RGB)
     # is it sheered?
     right_column = oct_image.shape[1] - 1
     if is_trapezoid_image(oct_image):
-        oct_image = warp_oct(oct_image)
-    # top glowing layer workaround:
-    if os.path.basename(oct_input_image_path) == 'LF-01-Slide04_Section02-Fig-3-d-_jpeg.rf.686dda2850b99806206cb905623f33a7.jpg':
-        oct_image = oct_image[200:,:,:]
+        oct_image, affine_transform_matrix = warp_oct(oct_image)
+        #TODO: check the warped mask true path...
+        warped_mask_true = cv2.warpPerspective(mask_true, affine_transform_matrix, (mask_true.shape[1], mask_true.shape[0]))
     # OCT image's pixel size
     microns_per_pixel_z = 1
     microns_per_pixel_x = 1
@@ -109,7 +108,7 @@ def predict(oct_input_image_path, predictor, weights_path, vhist = True, downsam
         segmentation, points_used = run_gui_segmentation(cropped, weights_path)
         virtual_histology_image_copy = None
 
-    return segmentation, virtual_histology_image_copy, crop_args, points_used
+    return segmentation, virtual_histology_image_copy, crop_args, points_used, warped_mask_true
 
 
 def get_y_center_of_tissue(oct_image):
