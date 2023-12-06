@@ -122,7 +122,7 @@ total_samples_vhist = 0
 
 # Get the list of image files
 image_files = [f for f in os.listdir(annot_dataset_dir) if f.endswith(".jpg")]
-# image_files = image_files[3:]
+image_files = image_files[3:]
 total_iou_vhist = {EPIDERMIS:0}  # DERMIS:0 , # IOU for each class
 total_iou_oct = {EPIDERMIS:0}
 total_samples_vhist = 0
@@ -147,8 +147,8 @@ df = pd.DataFrame({
 }, index=index_array)
 
 for image_file in tqdm(image_files):
-    if not extract_filename_prefix(image_file).startswith("LE-03-Slide04_Section01_yp0_A"):
-        continue
+    # if not extract_filename_prefix(image_file).startswith("LE-03-Slide04_Section01_yp0_A"):
+    #     continue
     image_name = extract_filename_prefix(image_file)
     gt_image_path = os.path.join(raw_oct_dataset_dir, image_file)
     image_path = os.path.join(annot_dataset_dir, image_file)

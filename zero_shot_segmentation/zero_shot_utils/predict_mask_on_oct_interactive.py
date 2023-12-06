@@ -64,6 +64,8 @@ def predict(oct_input_image_path, mask_true, weights_path, vhist = True, downsam
         mask_true_uint8 = mask_true.astype(np.uint8) * 255
         warped_mask_true = cv2.warpPerspective(mask_true_uint8, affine_transform_matrix, (mask_true.shape[1], mask_true.shape[0]))
         warped_mask_true = (warped_mask_true > 0)
+    else:
+        warped_mask_true = mask_true
     # OCT image's pixel size
     microns_per_pixel_z = 1
     microns_per_pixel_x = 1
