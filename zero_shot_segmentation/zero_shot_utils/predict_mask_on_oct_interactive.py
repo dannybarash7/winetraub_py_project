@@ -52,7 +52,7 @@ def is_trapezoid_image(oct_image):
     if top_row_first_non_zero_index > margin or mid_row_first_non_zero_index > margin:
         return True
 
-def predict(oct_input_image_path, mask_true, weights_path, vhist = True, downsample = True):
+def predict(oct_input_image_path, mask_true, weights_path, vhist = True, downsample = False):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
     oct_image = cv2.cvtColor(oct_image, cv2.COLOR_BGR2RGB)
@@ -61,7 +61,9 @@ def predict(oct_input_image_path, mask_true, weights_path, vhist = True, downsam
     if is_trapezoid_image(oct_image):
         oct_image, affine_transform_matrix = warp_oct(oct_image)
         #TODO: check the warped mask true path...
-        warped_mask_true = cv2.warpPerspective(mask_true, affine_transform_matrix, (mask_true.shape[1], mask_true.shape[0]))
+        mask_true_uint8 = mask_true.astype(np.uint8) * 255
+        warped_mask_true = cv2.warpPerspective(mask_true_uint8, affine_transform_matrix, (mask_true.shape[1], mask_true.shape[0]))
+        warped_mask_true = (warped_mask_true > 0)
     # OCT image's pixel size
     microns_per_pixel_z = 1
     microns_per_pixel_x = 1
