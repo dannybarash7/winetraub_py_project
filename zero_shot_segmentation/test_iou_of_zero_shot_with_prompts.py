@@ -40,7 +40,7 @@ rf_api_key= "R04BinsZcBZ6PsfKR2fP"
 rf_workspace= "yolab-kmmfx"
 rf_project_name = "11-16-2023-zero-shot-oct"
 rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
-version = 4
+version = 5
 CHECKPOINT_PATH = "weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 
 roboflow_annot_dataset_dir = os.path.join(os.getcwd(),f"./11/16/2023-Zero-shot-OCT-{version}/test")
@@ -81,7 +81,7 @@ def download_images_and_masks(api_key, workspace, project_name, dataset_name, ve
     from roboflow import Roboflow
     rf = Roboflow(api_key=api_key)
     project = rf.workspace(workspace).project(project_name)
-    dataset = project.version(version).download(rf_dataset_type, overwrite = False)
+    dataset = project.version(version).download(rf_dataset_type, overwrite = True)
     return dataset
 
 # Function to calculate Intersection over Union (IoU)
@@ -123,7 +123,7 @@ total_samples_vhist = 0
 
 # Get the list of image files
 image_files = [f for f in os.listdir(roboflow_annot_dataset_dir) if f.endswith(".jpg")]
-# image_files = image_files[3:]
+image_files = image_files[1:]
 total_iou_vhist = {EPIDERMIS:0}  # DERMIS:0 , # IOU for each class
 total_iou_oct = {EPIDERMIS:0}
 total_samples_vhist = 0
@@ -147,21 +147,25 @@ df = pd.DataFrame({
     "iou_vhist": numpy.nan,  # Replace with your data for "iou vhist"
     "iou_oct": numpy.nan     # Replace with your data for "iou oct"
 }, index=index_array)
-
-for oct_file_name in tqdm(image_files):
+i =0
+for oct_fname in tqdm(image_files):
 
     # if not extract_filename_prefix(image_file).startswith("LE-03-Slide04_Section01_yp0_A"):
     #     continue
-    image_name = extract_filename_prefix(oct_file_name)
-    real_histology_file_name = oct_file_name.replace("_A_","_B_")
-    image_path = os.path.join(roboflow_annot_dataset_dir, oct_file_name)
+    is_real_histology = oct_fname.find("_B_") != -1
+    if is_real_histology:
+        continue
+    i += 1
+    image_name = extract_filename_prefix(oct_fname)
+    print(f"image number {i}: {image_name}")
+    image_path = os.path.join(roboflow_annot_dataset_dir, oct_fname)
     oct_img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-
-    histology_image_name = image_name[:-1]+"B.jpg"
-    real_histology_path = os.path.join(roboflow_annot_dataset_dir, histology_image_name)
+    real_histology_image_name = image_name.replace("_A","_B")
+    real_histology_fname=dataset.df.img_filename[dataset.df.img_filename.str.startswith(real_histology_image_name)].values[0]
+    real_histology_path = os.path.join(roboflow_annot_dataset_dir, real_histology_fname)
     real_hist_img = cv2.imread(real_histology_path, cv2.IMREAD_UNCHANGED)
 
-    coco_mask = dataset.df.ann_segmentation[dataset.df.img_filename == real_histology_file_name].values[0][0]
+    coco_mask = dataset.df.ann_segmentation[dataset.df.img_filename == real_histology_fname].values[0][0]
     mask_true = coco_mask_to_numpy(oct_img.shape, coco_mask)
     if visualize_input_gt:
         plt.figure(figsize=(5, 5))
@@ -223,7 +227,7 @@ for oct_file_name in tqdm(image_files):
 
 
     if segment_real_hist:
-        image_path = os.path.join(real_histology_dir, oct_file_name)
+        image_path = os.path.join(real_histology_dir, oct_fname)
         oct_mask, _, crop_args = predict(image_path, predictor, weights_path=CHECKPOINT_PATH, vhist=False)
 
     if mask is None or mask.sum().sum()==0:
