@@ -40,7 +40,7 @@ rf_api_key= "R04BinsZcBZ6PsfKR2fP"
 rf_workspace= "yolab-kmmfx"
 rf_project_name = "11-16-2023-zero-shot-oct"
 rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
-version = 5
+version = 7
 CHECKPOINT_PATH = "weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 
 roboflow_annot_dataset_dir = os.path.join(os.getcwd(),f"./11/16/2023-Zero-shot-OCT-{version}/test")
@@ -123,7 +123,6 @@ total_samples_vhist = 0
 
 # Get the list of image files
 image_files = [f for f in os.listdir(roboflow_annot_dataset_dir) if f.endswith(".jpg")]
-image_files = image_files[1:]
 total_iou_vhist = {EPIDERMIS:0}  # DERMIS:0 , # IOU for each class
 total_iou_oct = {EPIDERMIS:0}
 total_samples_vhist = 0
@@ -137,19 +136,22 @@ visualize_pred_vs_gt_vhist = True
 visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
 visualize_input_vhist = True
-segment_real_hist = False
+segment_real_hist = True
 output_image_dir = "./images"
 if not os.path.exists(output_image_dir):
     os.makedirs(output_image_dir)
 
 index_array = [extract_filename_prefix(file) for file in image_files]
 df = pd.DataFrame({
-    "iou_vhist": numpy.nan,  # Replace with your data for "iou vhist"
-    "iou_oct": numpy.nan     # Replace with your data for "iou oct"
+    "iou_vhist": numpy.nan,
+    "nclicks_vhist": numpy.nan,
+    "iou_oct": numpy.nan,     # Replace with your data for "iou oct"
+    "nclicks_oct": numpy.nan,     # Replace with your data for "iou oct"
+    "iou_hist":numpy.nan,
+    "nclicks_hist":numpy.nan,
 }, index=index_array)
 i =0
 for oct_fname in tqdm(image_files):
-
     # if not extract_filename_prefix(image_file).startswith("LE-03-Slide04_Section01_yp0_A"):
     #     continue
     is_real_histology = oct_fname.find("_B_") != -1
@@ -157,7 +159,7 @@ for oct_fname in tqdm(image_files):
         continue
     i += 1
     image_name = extract_filename_prefix(oct_fname)
-    print(f"image number {i}: {image_name}")
+    print(f"\nimage number {i}: {image_name}")
     image_path = os.path.join(roboflow_annot_dataset_dir, oct_fname)
     oct_img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     real_histology_image_name = image_name.replace("_A","_B")
@@ -186,20 +188,23 @@ for oct_fname in tqdm(image_files):
         plt.savefig(f'{os.path.join(output_image_dir, image_name)}_input_hist.png')
         plt.close('all')
 
-
+    #oct
+    print("OCT segmentation")
     oct_mask, _, crop_args, n_points_used, warped_mask_true = predict(image_path, mask_true, weights_path=CHECKPOINT_PATH,
                                                         vhist=False)
-    cropped_mask_gt = crop(warped_mask_true, **crop_args)
+    cropped_histology_gt = crop(warped_mask_true, **crop_args)
     cropped_oct_image = crop(oct_img, **crop_args)
 
-    epidermis_iou_oct = calculate_iou(cropped_mask_gt, oct_mask, EPIDERMIS)
+    epidermis_iou_oct = calculate_iou(cropped_histology_gt, oct_mask, EPIDERMIS)
+    print(f"OCT iou: {epidermis_iou_oct}.")
     total_iou_oct[EPIDERMIS] += epidermis_iou_oct
     df.loc[image_name, "iou_oct"] = epidermis_iou_oct
+    df.loc[image_name, "nclicks_oct"] = n_points_used
     if visualize_pred_vs_gt_oct:
         plt.figure(figsize=(5, 5))
         plt.imshow(cropped_oct_image, cmap="gray")
         c1 = show_mask(oct_mask, plt.gca())
-        c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True, alpha = 0.2)
+        c2 = show_mask(cropped_histology_gt, plt.gca(), random_color=True, alpha = 0.2)
         plt.axis('off')
         plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}, {n_points_used} clicks")
         plt.title(f"{image_name}")
@@ -212,42 +217,81 @@ for oct_fname in tqdm(image_files):
         plt.close()
     total_samples_oct+=1
 
-    mask, virtual_histology_image, crop_args, n_points_used, warped_mask_true = predict(image_path, mask_true, weights_path = CHECKPOINT_PATH)
+    # histology segmentation
+    print("histology segmentation")
+    if segment_real_hist:
+        histology_mask, _, crop_args, n_points_used, warped_mask_true = predict(real_histology_path, mask_true, weights_path=CHECKPOINT_PATH, vhist=False)
+        if warped_mask_true is None or warped_mask_true.sum().sum() == 0:
+            print(f"Could not segment {image_path}.")
+            continue
+        warped_mask_true[warped_mask_true == 1] = True
+        warped_mask_true[warped_mask_true == 0] = False
+        cropped_histology_image = crop(real_hist_img, **crop_args)
+        cropped_histology_gt = crop(warped_mask_true, **crop_args)
+        epidermis_iou_real_hist = calculate_iou(cropped_histology_gt, histology_mask, EPIDERMIS)
+        df.loc[image_name, "iou_hist"] = epidermis_iou_real_hist
+        df.loc[image_name, "nclicks_hist"] = n_points_used
+        print(f"real histology iou: {epidermis_iou_real_hist}.")
+        plt.figure(figsize=(5, 5))
+        plt.imshow(cropped_histology_image, cmap="gray")
+        c1 = show_mask(histology_mask, plt.gca())
+        c2 = show_mask(cropped_histology_gt, plt.gca(), random_color=True, alpha = 0.2)
+        plt.axis('off')
+        plt.suptitle(f"Real histology segmentation: iou {epidermis_iou_real_hist:.2f}, {n_points_used} clicks")
+        plt.title(f"{image_name}")
+        legend_elements = [
+            Patch(color=c1, alpha=1, label='Yours'),
+            Patch(color=c2, alpha=1, label='GT'),
+        ]
+        plt.legend(handles=legend_elements)
+        plt.savefig(f'{os.path.join(output_image_dir, image_name)}_pred_real_hist.png')
+        plt.close()
 
+
+        # plt.figure(figsize=(5, 5))
+        # plt.imshow(cropped_histology_image)
+        # show_mask(cropped_histology_gt, plt.gca(), alpha = 0.6)
+        # plt.axis('off')
+        # plt.suptitle(f"Input real histology and predicted mask")
+        # plt.title(f"name {image_name}")
+        # plt.savefig(f'{os.path.join(output_image_dir,image_name)}_pred_hist.png')
+        # plt.close()
+
+    #v. histology segmentation
+    print("virtual histology segmentation")
+    cropped_vhist_mask, cropped_vhist, crop_args, n_points_used, warped_vhist_mask_true = predict(image_path, mask_true, weights_path = CHECKPOINT_PATH)
+    cropped_vhist_mask_true = crop(warped_vhist_mask_true, **crop_args)
 
     if visualize_input_vhist:
         plt.figure(figsize=(5, 5))
-        plt.imshow(virtual_histology_image)
-        show_mask(cropped_mask_gt, plt.gca(), alpha = 0.6)
+        plt.imshow(cropped_vhist)
+        show_mask(cropped_vhist_mask_true, plt.gca(), alpha = 0.6)
         plt.axis('off')
-        plt.suptitle(f"Input vhist and ground truth mask")
+        plt.suptitle(f"Generated vhist and ground truth mask")
         plt.title(f"name {image_name}")
         plt.savefig(f'{os.path.join(output_image_dir,image_name)}_input_vhist.png')
         plt.close()
 
 
-    if segment_real_hist:
-        image_path = os.path.join(real_histology_dir, oct_fname)
-        oct_mask, _, crop_args = predict(image_path, predictor, weights_path=CHECKPOINT_PATH, vhist=False)
-
-    if mask is None or mask.sum().sum()==0:
+    if cropped_vhist_mask is None or cropped_vhist_mask.sum().sum()==0:
         print(f"Could not segment {image_path}.")
         continue
-    mask[mask==1] = True
-    mask[mask == 0] = False
-    #mask_pred = cv2.resize(mask_pred, (mask_true.shape[1], mask_true.shape[0]), interpolation =  cv2.INTER_NEAREST)
+    cropped_vhist_mask[cropped_vhist_mask == 1] = True
+    cropped_vhist_mask[cropped_vhist_mask == 0] = False
     cropped_oct_image = crop(oct_img, **crop_args)
     # Calculate IoU for each class# DERMIS
-    epidermis_iou_vhist = calculate_iou(cropped_mask_gt, mask, EPIDERMIS)
+    epidermis_iou_vhist = calculate_iou(cropped_histology_gt, cropped_vhist_mask, EPIDERMIS)
+    print(f"v. histology iou: {epidermis_iou_vhist}.")
     df.loc[image_name,"iou_vhist"] = epidermis_iou_vhist
+    df.loc[image_name, "nclicks_vhist"] = n_points_used
     total_iou_vhist[EPIDERMIS] += epidermis_iou_vhist
     total_samples_vhist += 1
 
     if visualize_pred_over_vhist:
         plt.figure(figsize=(5, 5))
-        plt.imshow(virtual_histology_image)
-        c1 = show_mask(mask, plt.gca())
-        c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True, alpha = 0.6)
+        plt.imshow(cropped_vhist)
+        c1 = show_mask(cropped_vhist_mask, plt.gca())
+        c2 = show_mask(cropped_histology_gt, plt.gca(), random_color=True, alpha = 0.6)
         plt.axis('off')
         plt.suptitle(f"vhist segmentation: iou {epidermis_iou_vhist:.2f}, {n_points_used} clicks")
         plt.title(f"{image_name}")
@@ -263,8 +307,8 @@ for oct_fname in tqdm(image_files):
     if visualize_pred_vs_gt_vhist:
         plt.figure(figsize=(5, 5))
         plt.imshow(cropped_oct_image, cmap = "gray")
-        c1 = show_mask(mask, plt.gca())
-        c2 = show_mask(cropped_mask_gt, plt.gca(), random_color=True, alpha = 0.2)
+        c1 = show_mask(cropped_vhist_mask, plt.gca())
+        c2 = show_mask(cropped_histology_gt, plt.gca(), random_color=True, alpha = 0.2)
         plt.axis('off')
         plt.suptitle(f"oct and vhist segmentation: iou {epidermis_iou_vhist:.2f}, {n_points_used} clicks")
         plt.title(f"{image_name}")

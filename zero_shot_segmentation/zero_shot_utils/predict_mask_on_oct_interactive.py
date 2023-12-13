@@ -58,7 +58,7 @@ def predict(oct_input_image_path, mask_true, weights_path, vhist = True, downsam
     oct_image = cv2.cvtColor(oct_image, cv2.COLOR_BGR2RGB)
     # is it sheered?
     right_column = oct_image.shape[1] - 1
-    if is_trapezoid_image(oct_image):
+    if is_trapezoid_image(oct_image) and mask_true is not None:
         oct_image, affine_transform_matrix = warp_oct(oct_image)
         #TODO: check the warped mask true path...
         mask_true_uint8 = mask_true.astype(np.uint8) * 255
