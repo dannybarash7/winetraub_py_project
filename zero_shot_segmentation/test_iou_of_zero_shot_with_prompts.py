@@ -40,7 +40,7 @@ rf_api_key= "R04BinsZcBZ6PsfKR2fP"
 rf_workspace= "yolab-kmmfx"
 rf_project_name = "11-16-2023-zero-shot-oct"
 rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
-version = 7
+version = 8
 CHECKPOINT_PATH = "weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 
 roboflow_annot_dataset_dir = os.path.join(os.getcwd(),f"./11/16/2023-Zero-shot-OCT-{version}/test")
@@ -92,8 +92,6 @@ def calculate_iou(mask_true, mask_pred, class_id):
 
     class_iou = np.sum(intersection) / np.sum(union)
     return class_iou
-
-    mask_pred_bool = mask_pred.astype(bool)
 def make_mask_drawable(mask):
     mask = mask.astype(np.uint8)
     mask[mask == 1] = 255
@@ -151,6 +149,21 @@ df = pd.DataFrame({
     "nclicks_hist":numpy.nan,
 }, index=index_array)
 i =0
+
+
+def save_diff_image(oct_mask, cropped_histology_gt, path):
+    oct_bool = oct_mask.astype(bool)
+    hist_bool = cropped_histology_gt.astype(bool)
+    diff = oct_bool ^ hist_bool
+    diff = make_mask_drawable(diff)
+    plt.figure(figsize=(5, 5))
+    plt.imshow(diff)
+    plt.axis('off')
+    plt.savefig(f"{path}_diff.png")
+    plt.close('all')
+
+
+
 for oct_fname in tqdm(image_files):
     # if not extract_filename_prefix(image_file).startswith("LE-03-Slide04_Section01_yp0_A"):
     #     continue
@@ -213,8 +226,11 @@ for oct_fname in tqdm(image_files):
             Patch(color=c2, alpha=1, label='GT'),
         ]
         plt.legend(handles=legend_elements)
-        plt.savefig(f'{os.path.join(output_image_dir, image_name)}_pred_wo_vhist.png')
+        fpath = f'{os.path.join(output_image_dir, image_name)}_oct_pred'
+        plt.savefig(f'{fpath}.png')
+        save_diff_image(oct_mask, cropped_histology_gt, fpath)
         plt.close()
+
     total_samples_oct+=1
 
     # histology segmentation
@@ -244,7 +260,10 @@ for oct_fname in tqdm(image_files):
             Patch(color=c2, alpha=1, label='GT'),
         ]
         plt.legend(handles=legend_elements)
-        plt.savefig(f'{os.path.join(output_image_dir, image_name)}_pred_real_hist.png')
+
+        fpath = f'{os.path.join(output_image_dir, image_name)}_pred_real_hist'
+        plt.savefig(f'{fpath}.png')
+        save_diff_image(histology_mask, cropped_histology_gt, fpath)
         plt.close()
 
 
@@ -301,7 +320,9 @@ for oct_fname in tqdm(image_files):
             Patch(color=c2, alpha=1, label='GT'),
         ]
         plt.legend(handles=legend_elements)
-        plt.savefig(f'{os.path.join(output_image_dir, image_name)}_vhist_pred.png')
+        fpath = f'{os.path.join(output_image_dir, image_name)}_vhist_pred'
+        plt.savefig(f'{fpath}.png')
+        save_diff_image(cropped_vhist_mask, cropped_histology_gt, fpath)
         plt.close()
 
     if visualize_pred_vs_gt_vhist:
