@@ -163,7 +163,7 @@ def save_diff_image(oct_mask, cropped_histology_gt, path):
     plt.close('all')
 
 
-
+continue_flag = True
 for oct_fname in tqdm(image_files):
     # if not extract_filename_prefix(image_file).startswith("LE-03-Slide04_Section01_yp0_A"):
     #     continue
@@ -173,6 +173,10 @@ for oct_fname in tqdm(image_files):
     i += 1
     image_name = extract_filename_prefix(oct_fname)
     print(f"\nimage number {i}: {image_name}")
+    if image_name == "LH-22-Slide03_Section02_yp0_A":
+        continue_flag = False
+    elif continue_flag:
+        continue
     image_path = os.path.join(roboflow_annot_dataset_dir, oct_fname)
     oct_img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     real_histology_image_name = image_name.replace("_A","_B")
@@ -213,6 +217,7 @@ for oct_fname in tqdm(image_files):
     total_iou_oct[EPIDERMIS] += epidermis_iou_oct
     df.loc[image_name, "iou_oct"] = epidermis_iou_oct
     df.loc[image_name, "nclicks_oct"] = n_points_used
+
     if visualize_pred_vs_gt_oct:
         plt.figure(figsize=(5, 5))
         plt.imshow(cropped_oct_image, cmap="gray")
