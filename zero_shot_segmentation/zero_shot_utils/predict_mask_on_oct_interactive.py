@@ -52,7 +52,7 @@ def is_trapezoid_image(oct_image):
     if top_row_first_non_zero_index > margin or mid_row_first_non_zero_index > margin:
         return True
 
-def predict(oct_input_image_path, mask_true, weights_path, vhist = True, downsample = False):
+def predict(oct_input_image_path, mask_true, weights_path, create_vhist = True, downsample = False, output_vhist_path = None):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
     oct_image = cv2.cvtColor(oct_image, cv2.COLOR_BGR2RGB)
@@ -75,7 +75,7 @@ def predict(oct_input_image_path, mask_true, weights_path, vhist = True, downsam
     y_center = get_y_center_of_tissue(masked_gel_image)
     y_center = y_center * (2/3)
     # no need to crop - the current folder contains pre cropped images.
-    cropped, crop_args =  crop_oct(rescaled, y_center)
+    cropped, crop_args = crop_oct(rescaled, y_center)
 
     # Calculate the histogram
     # histogram = cv2.calcHist([cropped], [0], None, [256], [0, 256])
@@ -87,12 +87,19 @@ def predict(oct_input_image_path, mask_true, weights_path, vhist = True, downsam
     # plt.ylabel('Frequency')
     # plt.show()
 
-    if vhist:
+    if create_vhist:
 
         # run vh&e
         virtual_histology_image, _, o2h_input = oct2hist.run_network(cropped,
                                                                      microns_per_pixel_x=microns_per_pixel_x,
                                                                      microns_per_pixel_z=microns_per_pixel_z)
+
+        #take the R channel
+        virtual_histology_image = cv2.cvtColor(virtual_histology_image,cv2.COLOR_BGR2RGB)
+
+        if output_vhist_path:
+            cv2.imwrite(output_vhist_path, virtual_histology_image)
+        # virtual_histology_image = virtual_histology_image[:,:,0]
         virtual_histology_image_copy = virtual_histology_image.copy()
         if downsample:
             blurred_image = cv2.GaussianBlur(virtual_histology_image, (0, 0), 4)

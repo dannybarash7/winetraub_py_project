@@ -53,6 +53,7 @@ def mask_image_gel(img, min_signal_threshold=np.nan):
   # Apply filter on original image and convert to output format
   float_img = float_img * boolean_mask
   # RuntimeWarning: invalid value encountered in cast
+  float_img[np.isnan(float_img)] = 0.0
   img = (float_img*255).astype(np.uint8)
   return img, boolean_mask, min_signal_threshold
 

@@ -4,7 +4,8 @@ import numpy as np
 def crop(input_image, target_width=1024, target_height=512, x0=0, z0=0):
     # Get the dimensions of the input image
     input_height, input_width = input_image.shape[:2]
-
+    if input_height == target_height and input_width == target_width:
+        return input_image
     # Calculate the cropping region
     x1 = min(input_width, x0 + target_width)
     z1 = min(input_height, z0 + target_height)

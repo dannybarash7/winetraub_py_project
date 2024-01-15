@@ -22,12 +22,13 @@ def run_gui(img, weights_path):
 
 
 class Segmenter():
-    def __init__(self, img, weights_path, npoints=200):
+    def __init__(self, img, weights_path, npoints=200, box_prediction_flag = True):
         self.img = img
         self.min_mask_region_area = 500
         self.npoints = npoints
         self.init_points = npoints
         self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
+        self.box_prediction_flag = box_prediction_flag
         if torch.cuda.is_available():
             self.sam.to(device="cuda")
         self.predictor = SamPredictor(self.sam)
@@ -147,12 +148,33 @@ class Segmenter():
         self.fig.canvas.draw()
 
     def get_mask(self):
-        mask, _, _ = self.predictor.predict(point_coords=np.array(list(zip(self.add_xs, self.add_ys)) +
-                                                                  list(zip(self.rem_xs, self.rem_ys))),
-                                            point_labels=np.array([1] * len(self.add_xs) + [0] * len(self.rem_xs)),
-                                            multimask_output=False)
-        mask = mask[0].astype(np.uint8)
+        if self.box_prediction_flag:
+            if len(self.add_xs) >= 2 and len(self.add_xs) % 2 == 0:
+                last_2_xs = self.add_xs[-2:]
+                last_2_xs.sort()
+                last_2_ys = self.add_ys[-2:]
+                last_2_ys.sort()
+                masks, _, _ = self.predictor.predict(box=np.array(list([last_2_xs[0], last_2_ys[0], last_2_xs[1], last_2_ys[1]])),
+                                                    multimask_output=False)
+                self.npoints = 0
+            else:
+                return
+        else:
+            masks, _, _ = self.predictor.predict(point_coords=np.array(list(zip(self.add_xs, self.add_ys)) +
+                                                                      list(zip(self.rem_xs, self.rem_ys))),
+                                                point_labels=np.array([1] * len(self.add_xs) + [0] * len(self.rem_xs)),
+                                                multimask_output=False)
+        # smallest = np.unique(masks[0, :, :], return_counts=True)[1][1]
+        # smallest_i = 0
+        # for i in range(3):
+        #     print(f"count for {i} is {np.unique(masks[i, :, :], return_counts=True)}")
+        #     ntrue = np.unique(masks[i, :, :], return_counts=True)[1][1]
+        #     if smallest  > ntrue:
+        #         smallest = ntrue
+        #         smallest_i = i
+        # mask = masks[smallest_i,:,:].astype(np.uint8)
 
+        mask = masks[0].astype(np.uint8)
         mask[self.global_masks > 0] = 0
         mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
         mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")
