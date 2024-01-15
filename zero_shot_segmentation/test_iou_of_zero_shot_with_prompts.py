@@ -239,7 +239,7 @@ for oct_fname in tqdm(image_files):
                 c1 = show_mask(oct_mask, plt.gca())
                 c2 = show_mask(cropped_histology_gt, plt.gca(), random_color=True, alpha = 0.2)
                 plt.axis('off')
-                plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}, {n_points_used} clicks")
+                plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}")
                 plt.title(f"{image_name}")
                 legend_elements = [
                     Patch(color=c1, alpha=1, label='Yours'),
@@ -277,7 +277,7 @@ for oct_fname in tqdm(image_files):
             c1 = show_mask(histology_mask, plt.gca())
             c2 = show_mask(mask_true, plt.gca(), random_color=True, alpha = 0.2)
             plt.axis('off')
-            plt.suptitle(f"Real histology segmentation: iou {epidermis_iou_real_hist:.2f}, {n_points_used} clicks")
+            plt.suptitle(f"Real histology segmentation: iou {epidermis_iou_real_hist:.2f}")
             plt.title(f"{image_name}")
             legend_elements = [
                 Patch(color=c1, alpha=1, label='Yours'),
@@ -295,7 +295,7 @@ for oct_fname in tqdm(image_files):
             plt.imshow(roboflow_next_img)
             show_mask(mask_true, plt.gca(), alpha = 0.6)
             plt.axis('off')
-            plt.suptitle(f"Input real histology and predicted mask")
+            plt.suptitle(f"Input real histology and predicted mask, iou {epidermis_iou_real_hist:.2f}")
             plt.title(f"name {image_name}")
             plt.savefig(f'{os.path.join(output_image_dir,image_name)}_pred_hist.png')
             plt.close()
@@ -338,7 +338,7 @@ for oct_fname in tqdm(image_files):
             c1 = show_mask(cropped_vhist_mask, plt.gca())
             c2 = show_mask(mask_true, plt.gca(), random_color=True, alpha = 0.6)
             plt.axis('off')
-            plt.suptitle(f"vhist segmentation: iou {epidermis_iou_vhist:.2f}, {n_points_used} clicks")
+            plt.suptitle(f"vhist segmentation: iou {epidermis_iou_vhist:.2f}")
             plt.title(f"{image_name}")
             # Add a legend
             legend_elements = [
