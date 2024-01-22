@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import cv2
 import matplotlib as mpl
-from segment_anything import sam_model_registry, SamPredictor
+from segment_anything import sam_model_registry, SamPredictor, SamAutomaticMaskGenerator
 import torch
 import os
 from matplotlib.patches import Circle
@@ -21,20 +21,77 @@ def run_gui(img, weights_path):
     return segmenter
 
 
+def get_point_grid():
+    # Define the number of points on each axis
+    num_x_points = 32
+    num_y_points = 32
+    width = 1024
+    height = 512
+    start_y = int(0.1 * height)
+    end_y = int(0.6 * height)
+    # Create 1D arrays for x and y coordinates
+    x = np.linspace(0, width, num_x_points)
+    y = np.linspace(start_y, end_y, num_y_points)
+    x = x[1:-1]
+    y = y[1:-1]
+    # Use numpy.meshgrid to create a grid of (x, y) points
+    xx, yy = np.meshgrid(x, y)
+    xx = xx / width
+    yy = yy / height
+    # Stack the (x, y) points into a single array of (x, y) pairs
+    points = np.stack((xx, yy), axis=-1)
+    points = points.reshape(-1, 2)
+    # Convert the numpy arrays to a list of np.ndarray objects
+    points_list = [points]
+    """
+    [array([[0.015625, 0.015625],
+        [0.046875, 0.015625],
+        [0.078125, 0.015625],
+        ...,
+        [0.921875, 0.984375],
+        [0.953125, 0.984375],
+        [0.984375, 0.984375]])]
+    """
+    return points_list
+
+
+
 class Segmenter():
-    def __init__(self, img, weights_path, npoints=200, box_prediction_flag = True):
+    def __init__(self, img, weights_path, npoints=200, box_prediction_flag = True, segment_all = False):
         self.img = img
         self.min_mask_region_area = 500
         self.npoints = npoints
         self.init_points = npoints
         self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
         self.box_prediction_flag = box_prediction_flag
+        self.segment_all = segment_all
         if torch.cuda.is_available():
             self.sam.to(device="cuda")
-        self.predictor = SamPredictor(self.sam)
+        if not segment_all:
+            self.predictor = SamPredictor(self.sam)
+        else:
+            point_grids = get_point_grid()
+            self.predictor = SamAutomaticMaskGenerator(
+                self.sam,
+                points_per_side=5,  # 32 relevant
+                points_per_batch=64,
+                pred_iou_thresh=0.88,  # relevant
+                stability_score_thresh=0.7,  # relevant (default is 0.95)
+                stability_score_offset=1.0,  # relevant
+                box_nms_thresh=0.7,  # relevant
+                crop_n_layers=0,  # relevant
+                crop_nms_thresh=0.7,  # relevant
+                crop_overlap_ratio=512 / 1500,  # relevant
+                crop_n_points_downscale_factor=1,  # relevant
+                point_grids=None, #point_grids,
+                min_mask_region_area=0,  # relevant, default is 0
+                # output_mode: str = "binary_mask",
+            )
+
 
         print("Creating image embeddings ... ", end="")
-        self.predictor.set_image(self.img)
+        if not self.segment_all:
+            self.predictor.set_image(self.img)
         print("Done")
 
         self.color_set = set()
@@ -148,33 +205,43 @@ class Segmenter():
         self.fig.canvas.draw()
 
     def get_mask(self):
-        if self.box_prediction_flag:
+        if self.box_prediction_flag and not self.segment_all:
             if len(self.add_xs) >= 2 and len(self.add_xs) % 2 == 0:
                 last_2_xs = self.add_xs[-2:]
                 last_2_xs.sort()
                 last_2_ys = self.add_ys[-2:]
                 last_2_ys.sort()
-                masks, _, _ = self.predictor.predict(box=np.array(list([last_2_xs[0], last_2_ys[0], last_2_xs[1], last_2_ys[1]])),
-                                                    multimask_output=False)
+                if not self.segment_all:
+                    masks, _, _ = self.predictor.predict(box=np.array(list([last_2_xs[0], last_2_ys[0], last_2_xs[1], last_2_ys[1]])),
+                                                        multimask_output=False)
+                if self.segment_all:
+                    masks = self.predictor.predict(self.img)
                 self.npoints = 0
             else:
                 return
         else:
-            masks, _, _ = self.predictor.predict(point_coords=np.array(list(zip(self.add_xs, self.add_ys)) +
-                                                                      list(zip(self.rem_xs, self.rem_ys))),
-                                                point_labels=np.array([1] * len(self.add_xs) + [0] * len(self.rem_xs)),
-                                                multimask_output=False)
-        # smallest = np.unique(masks[0, :, :], return_counts=True)[1][1]
-        # smallest_i = 0
-        # for i in range(3):
-        #     print(f"count for {i} is {np.unique(masks[i, :, :], return_counts=True)}")
-        #     ntrue = np.unique(masks[i, :, :], return_counts=True)[1][1]
-        #     if smallest  > ntrue:
-        #         smallest = ntrue
-        #         smallest_i = i
-        # mask = masks[smallest_i,:,:].astype(np.uint8)
+            #points
+            if not self.segment_all:
+                masks, _, _ = self.predictor.predict(point_coords=np.array(list(zip(self.add_xs, self.add_ys)) +
+                                                                          list(zip(self.rem_xs, self.rem_ys))),
+                                                    point_labels=np.array([1] * len(self.add_xs) + [0] * len(self.rem_xs)),
+                                                    multimask_output=False)
+            else:
+                masks = self.predictor.generate(self.img)
 
-        mask = masks[0].astype(np.uint8)
+        if self.segment_all:
+            #sort segmentation boxes by y location
+            #get the second from top
+            bboxes = sorted(masks, key = lambda mask: mask['bbox'][1])
+            for m in bboxes:
+                print(m["bbox"])
+                print(m["area"])
+            # filter by area
+            minimal_area = 50000
+            bboxes = list(filter(lambda box: box["area"] > minimal_area, bboxes))
+            mask = bboxes[1]['segmentation'].astype(np.uint8)
+        else:
+            mask = masks[0].astype(np.uint8)
         mask[self.global_masks > 0] = 0
         mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
         mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")

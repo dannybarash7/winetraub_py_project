@@ -135,7 +135,7 @@ visualize_pred_over_vhist = True
 visualize_input_vhist = False
 segment_real_hist = True
 skip_real_histology = False
-output_image_dir = "./images_vhist_has gt"
+output_image_dir = "./images_vhist_has gt_bgr_fix"
 if not os.path.exists(output_image_dir):
     os.makedirs(output_image_dir)
 
@@ -181,7 +181,6 @@ for oct_fname in tqdm(image_files):
         continue
     image_path = os.path.join(roboflow_annot_dataset_dir, oct_fname)
     roboflow_next_img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-
     # gt_by_histology = False
     # if gt_by_histology:
     #     real_histology_image_name = image_name.replace("_A","_B")

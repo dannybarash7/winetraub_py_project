@@ -55,7 +55,6 @@ def is_trapezoid_image(oct_image):
 def predict(oct_input_image_path, mask_true, weights_path, create_vhist = True, downsample = False, output_vhist_path = None):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
-    oct_image = cv2.cvtColor(oct_image, cv2.COLOR_BGR2RGB)
     # is it sheered?
     right_column = oct_image.shape[1] - 1
     if is_trapezoid_image(oct_image) and mask_true is not None:
