@@ -22,7 +22,8 @@ import numpy as np
 from utils.show_images import showImg
 
 import torch
-from segment_anything import sam_model_registry, SamPredictor
+from SAM_Med2D.segment_anything import sam_model_registry as sammed_model_registry
+from SAM_Med2D.segment_anything.predictor_sammed import SammedPredictor
 
 import oct2hist
 from OCT2Hist_UseModel.utils.masking import get_sam_input_points, show_points, show_mask, mask_gel_and_low_signal
