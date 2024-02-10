@@ -12,7 +12,9 @@ sys.path.append('./OCT2Hist_UseModel')
 from SAM_Med2D.segment_anything import sam_model_registry as sammed_model_registry
 from SAM_Med2D.segment_anything.predictor_sammed import SammedPredictor
 
+segmenter = None
 def run_gui(img, weights_path):
+    global segmenter
     if img is None:
         raise Exception("Image file not found.")
 
@@ -61,6 +63,7 @@ def get_point_grid():
 
 
 class Segmenter():
+    _predictor = None
     def __init__(self, img, weights_path, npoints=200, box_prediction_flag = False, segment_all = True, MAX_MASKS = 50):
         self.img = img
         self.min_mask_region_area = 500
@@ -71,34 +74,41 @@ class Segmenter():
         args.encoder_adapter = True
         args.sam_checkpoint = "/Users/dannybarash/Code/oct/medsam/sam-med2d/OCT2Hist_UseModel/SAM_Med2D/pretrain_model/sam-med2d_b.pth"
         device = "cpu"
-        model = sammed_model_registry["vit_b"](args).to(device)
-        predictor = SammedPredictor(model)
-        self.init_points = npoints
-        self.sam = model# sam_model_registry["vit_h"](checkpoint=weights_path)
+
         self.box_prediction_flag = box_prediction_flag
         self.segment_all = segment_all
-        if torch.cuda.is_available():
-            self.sam.to(device="cuda")
-        if not segment_all:
-            self.predictor = predictor#SamPredictor(self.sam)
+        self.init_points = npoints
+        if Segmenter._predictor is None:
+            model = sammed_model_registry["vit_b"](args).to(device)
+            predictor = SammedPredictor(model)
+            self.sam = model# sam_model_registry["vit_h"](checkpoint=weights_path)
+            if torch.cuda.is_available():
+                self.sam.to(device="cuda")
+            if not segment_all:
+                self.predictor = predictor#SamPredictor(self.sam)
+            else:
+                point_grids = get_point_grid()
+                self.predictor = SamAutomaticMaskGenerator(
+                    self.sam,
+                    points_per_side=32,  # 32 relevant
+                    points_per_batch=64,
+                    pred_iou_thresh=0.0,  # relevant
+                    stability_score_thresh=0.0,  # relevant (default is 0.95)
+                    stability_score_offset=1.0,  # relevant
+                    box_nms_thresh=1.0,  # relevant
+                    crop_n_layers=0,  # relevant
+                    crop_nms_thresh=1.0,  # relevant
+                    crop_overlap_ratio=512 / 1500,  # relevant
+                    crop_n_points_downscale_factor=1,  # relevant
+                    point_grids=None, #point_grids,
+                    min_mask_region_area=0,  # relevant, default is 0
+                    # output_mode: str = "binary_mask",
+                )
+            #save for later
+            Segmenter._predictor = self.predictor
         else:
-            point_grids = get_point_grid()
-            self.predictor = SamAutomaticMaskGenerator(
-                self.sam,
-                points_per_side=32,  # 32 relevant
-                points_per_batch=64,
-                pred_iou_thresh=0.0,  # relevant
-                stability_score_thresh=0.7,  # relevant (default is 0.95)
-                stability_score_offset=1.0,  # relevant
-                box_nms_thresh=0.7,  # relevant
-                crop_n_layers=0,  # relevant
-                crop_nms_thresh=0.7,  # relevant
-                crop_overlap_ratio=512 / 1500,  # relevant
-                crop_n_points_downscale_factor=1,  # relevant
-                point_grids=None, #point_grids,
-                min_mask_region_area=0,  # relevant, default is 0
-                # output_mode: str = "binary_mask",
-            )
+            self.predictor = Segmenter._predictor
+
 
 
         print("Creating image embeddings ... ", end="")

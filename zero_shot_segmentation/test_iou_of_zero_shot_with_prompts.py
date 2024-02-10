@@ -37,9 +37,9 @@ import os
 # Define the Roboflow project URL and API key
 rf_api_key= "R04BinsZcBZ6PsfKR2fP"
 rf_workspace= "yolab-kmmfx"
-rf_project_name = "11-16-2023-zero-shot-oct"
+rf_project_name = "paper_data"
 rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
-version = 3
+version = 2
 CHECKPOINT_PATH = "weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 
 roboflow_annot_dataset_dir = f"/Users/dannybarash/Code/oct/medsam/sam-med2d/11/16/2023-Zero-shot-OCT-3/test" #os.path.join(os.getcwd(),f"{rf_project_name}-{version}/test")
@@ -144,18 +144,18 @@ from pylabel import importer
 dataset = importer.ImportCoco(path_to_annotations, path_to_images=roboflow_annot_dataset_dir, name="zero_shot_oct")
 visualize_input_gt = True
 # visualize_input_hist = False
-visualize_pred_vs_gt_vhist = False
+visualize_pred_vs_gt_vhist = True
 visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
-visualize_input_vhist = False
+visualize_input_vhist = True
 segment_real_hist = True
 skip_real_histology = False
 create_virtual_histology = True
 should_crop_mask = True
-start_from_n = 0
+start_from_n = 2
 is_input_always_oct = True
 
-output_image_dir = "./images_vhist_has gt_bgr_fix"
+output_image_dir = "./images_grid_prediction_gt_oct"
 if not os.path.exists(output_image_dir):
     os.makedirs(output_image_dir)
 
@@ -353,6 +353,9 @@ for oct_fname in tqdm(image_files):
         cropped_vhist_mask[cropped_vhist_mask == 0] = False
         cropped_oct_image = crop(roboflow_next_img, **crop_args)
         epidermis_iou_vhist, dice, best_mask = calculate_iou_for_multiple_predictions(mask_true, cropped_vhist_mask, EPIDERMIS)
+        if best_mask is None:
+            print(f"Could not calculate iou for {image_path}.")
+            continue
         print(f"v. histology iou: {epidermis_iou_vhist}.")
         print(f"v. histology dice: {dice}.")
         df.loc[image_name,"iou_vhist"] = epidermis_iou_vhist
