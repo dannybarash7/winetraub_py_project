@@ -42,7 +42,7 @@ rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
 version = 2
 CHECKPOINT_PATH = "weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 
-roboflow_annot_dataset_dir = f"/Users/dannybarash/Code/oct/medsam/sam-med2d/11/16/2023-Zero-shot-OCT-3/test" #os.path.join(os.getcwd(),f"{rf_project_name}-{version}/test")
+roboflow_annot_dataset_dir = f"/Users/dannybarash/Code/oct/medsam/sam-med2d/paper_data-2/test" #os.path.join(os.getcwd(),f"{rf_project_name}-{version}/test")
 #TODO: change this:
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
 real_histology_dir = raw_oct_dataset_dir
@@ -152,7 +152,7 @@ segment_real_hist = True
 skip_real_histology = False
 create_virtual_histology = True
 should_crop_mask = True
-start_from_n = 2
+start_from_n = 110
 is_input_always_oct = True
 
 output_image_dir = "./images_grid_prediction_gt_oct"
