@@ -395,7 +395,7 @@ roboflow.login()
 rf = Roboflow()
 
 project = rf.workspace("hashira-fhxpj").project("mri-brain-tumor")
-dataset = project.version(1).download("coco")
+dataset = project.rf_dataset_version(1).download("coco")
 
 import os
 

@@ -179,7 +179,7 @@ def get_roboflow_data(dir):
     rf_dataset = "png-mask-semantic"
     rf = Roboflow(api_key=rf_api_key)
     project = rf.workspace(rf_workspace).project(rf_project)
-    dataset = project.version(1).download(rf_dataset)
+    dataset = project.rf_dataset_version(1).download(rf_dataset)
     DATA_SET_SUBDIRECTORY = "test"
     ANNOTATIONS_FILE_NAME = "_annotations.coco.json"
     IMAGES_DIRECTORY_PATH = os.path.join(dataset.location, DATA_SET_SUBDIRECTORY)

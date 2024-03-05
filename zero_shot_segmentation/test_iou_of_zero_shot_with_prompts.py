@@ -26,7 +26,7 @@ from OCT2Hist_UseModel.utils.masking import get_sam_input_points, show_points, s
 
 from OCT2Hist_UseModel.utils.crop import crop
 from zero_shot_segmentation.zero_shot_utils.predict_mask_on_oct_interactive import predict
-
+sys.path.append('./OCT2Hist_UseModel')
 # from google.colab import drive
 sys.path.append('./zero_shot_segmentation')
 import cv2
@@ -106,6 +106,12 @@ def calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id
             best_mask = mask_pred
     return max_iou, max_dice, best_mask
 
+def single_or_multiple_predictions(mask_true, mask_predictions, class_id):
+    if isinstance(mask_predictions, list):
+        return calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id)
+    else:
+        return calculate_iou(mask_true, mask_predictions, class_id)
+
 def make_mask_drawable(mask):
     mask = mask.astype(np.uint8)
     mask[mask == 1] = 255
@@ -142,17 +148,17 @@ total_samples_oct = 0
 path_to_annotations = os.path.join(roboflow_annot_dataset_dir, "_annotations.coco.json")
 from pylabel import importer
 dataset = importer.ImportCoco(path_to_annotations, path_to_images=roboflow_annot_dataset_dir, name="zero_shot_oct")
-visualize_input_gt = True
+visualize_input_gt = False
 # visualize_input_hist = False
-visualize_pred_vs_gt_vhist = True
-visualize_pred_vs_gt_oct = True
-visualize_pred_over_vhist = True
-visualize_input_vhist = True
+visualize_pred_vs_gt_vhist = False
+visualize_pred_vs_gt_oct = False
+visualize_pred_over_vhist = False
+visualize_input_vhist = False
 segment_real_hist = True
 skip_real_histology = False
 create_virtual_histology = True
 should_crop_mask = True
-start_from_n = 110
+start_from_n = 1
 is_input_always_oct = True
 
 output_image_dir = "./images_grid_prediction_gt_oct"
@@ -168,7 +174,7 @@ df = pd.DataFrame({
     "iou_hist":numpy.nan,
     "nclicks_hist":numpy.nan,
 }, index=index_array)
-i =0
+i = 0
 
 
 def save_diff_image(oct_mask, cropped_histology_gt, path):
@@ -236,7 +242,7 @@ for oct_fname in tqdm(image_files):
     if is_oct:
         print("OCT segmentation")
         oct_mask, _, crop_args, n_points_used, warped_mask_true = predict(image_path, mask_true, weights_path=CHECKPOINT_PATH,
-                                                                          create_vhist=False)
+                                                                          create_vhist=False, gt_mask = mask_true)
 
         cropped_histology_gt = crop(warped_mask_true, **crop_args)
         # save image to disk
@@ -250,7 +256,7 @@ for oct_fname in tqdm(image_files):
         if warped_mask_true is None or warped_mask_true.sum().sum() == 0:
             print(f"Could not segment OCT image {image_path}.")
         else:
-            epidermis_iou_oct, dice, best_mask = calculate_iou_for_multiple_predictions(mask_true, oct_mask, EPIDERMIS)
+            epidermis_iou_oct, dice, best_mask = single_or_multiple_predictions(mask_true, oct_mask, EPIDERMIS)
             print(f"OCT iou: {epidermis_iou_oct}.")
             print(f"OCT dice: {dice}.")
             total_iou_oct[EPIDERMIS] += epidermis_iou_oct
@@ -284,7 +290,7 @@ for oct_fname in tqdm(image_files):
         print("histology segmentation")
 
         if segment_real_hist:
-            histology_mask, _, crop_args, n_points_used, warped_mask_true = predict(image_path, mask_true, weights_path=CHECKPOINT_PATH, create_vhist=False)
+            histology_mask, _, crop_args, n_points_used, warped_mask_true = predict(image_path, mask_true, weights_path=CHECKPOINT_PATH, create_vhist=False, gt_mask = mask_true)
             if warped_mask_true is None or warped_mask_true.sum().sum() == 0:
                 print(f"Could not segment {image_path}.")
                 continue
@@ -331,7 +337,7 @@ for oct_fname in tqdm(image_files):
         #v. histology segmentation
         print("virtual histology segmentation")
         path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
-        cropped_vhist_mask, cropped_vhist, crop_args, n_points_used, warped_vhist_mask_true = predict(image_path, mask_true, weights_path = CHECKPOINT_PATH, create_vhist= create_virtual_histology, output_vhist_path=path)
+        cropped_vhist_mask, cropped_vhist, crop_args, n_points_used, warped_vhist_mask_true = predict(image_path, mask_true, weights_path = CHECKPOINT_PATH, create_vhist= create_virtual_histology, output_vhist_path=path, gt_mask = mask_true )
         cropped_vhist_mask_true = crop(warped_vhist_mask_true, **crop_args)
         if is_virtual_histology:
             cropped_vhist = roboflow_next_img
@@ -349,10 +355,10 @@ for oct_fname in tqdm(image_files):
         if len(cropped_vhist_mask) == 0:
             print(f"Could not segment {image_path}.")
             continue
-        cropped_vhist_mask[cropped_vhist_mask == 1] = True
-        cropped_vhist_mask[cropped_vhist_mask == 0] = False
+        # cropped_vhist_mask[cropped_vhist_mask == 1] = True
+        # cropped_vhist_mask[cropped_vhist_mask == 0] = False
         cropped_oct_image = crop(roboflow_next_img, **crop_args)
-        epidermis_iou_vhist, dice, best_mask = calculate_iou_for_multiple_predictions(mask_true, cropped_vhist_mask, EPIDERMIS)
+        epidermis_iou_vhist, dice, best_mask = single_or_multiple_predictions(mask_true, cropped_vhist_mask, EPIDERMIS)
         if best_mask is None:
             print(f"Could not calculate iou for {image_path}.")
             continue

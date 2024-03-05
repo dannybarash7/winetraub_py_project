@@ -75,6 +75,7 @@ def predict(oct_input_image_path, mask_true, weights_path, create_vhist = True, 
     y_center = y_center * (2/3)
     # no need to crop - the current folder contains pre cropped images.
     cropped, crop_args = crop_oct(rescaled, y_center)
+    cropped_histology_gt = crop(warped_mask_true, **crop_args)
 
     # Calculate the histogram
     # histogram = cv2.calcHist([cropped], [0], None, [256], [0, 256])
@@ -110,12 +111,12 @@ def predict(oct_input_image_path, mask_true, weights_path, create_vhist = True, 
         # predictor.set_image(virtual_histology_image)
         # masks, scores, logits = predictor.predict(point_coords=input_point, point_labels=input_label,
         #                                          multimask_output=False, )
-        segmentation, points_used = run_gui_segmentation(virtual_histology_image, weights_path)
+        segmentation, points_used = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt)
         if downsample:
             segmentation = cv2.resize(segmentation, (0, 0), fx=4, fy=4)
 
     else:
-        segmentation, points_used = run_gui_segmentation(cropped, weights_path)
+        segmentation, points_used = run_gui_segmentation(cropped, weights_path, gt_mask = cropped_histology_gt)
         virtual_histology_image_copy = None
 
     return segmentation, virtual_histology_image_copy, crop_args, points_used, warped_mask_true

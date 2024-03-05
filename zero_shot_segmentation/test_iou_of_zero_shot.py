@@ -70,7 +70,7 @@ def download_images_and_masks(api_key, workspace, project_name, dataset_name, ve
     from roboflow import Roboflow
     rf = Roboflow(api_key=api_key)
     project = rf.workspace(workspace).project(project_name)
-    dataset = project.version(version).download(rf_dataset_type, overwrite = False)
+    dataset = project.rf_dataset_version(version).download(rf_dataset_type, overwrite = False)
     return dataset
 
 
