@@ -159,9 +159,10 @@ skip_real_histology = False
 create_virtual_histology = True
 should_crop_mask = True
 start_from_n = 1
+take_first_n_images = 5
 is_input_always_oct = True
 
-output_image_dir = "./images_grid_prediction_gt_oct"
+output_image_dir = "./images/point_prediction"
 if not os.path.exists(output_image_dir):
     os.makedirs(output_image_dir)
 
@@ -188,6 +189,8 @@ def save_diff_image(oct_mask, cropped_histology_gt, path):
     plt.savefig(f"{path}_diff.png")
     plt.close('all')
 
+if take_first_n_images>0:
+    image_files = image_files[:take_first_n_images]
 
 for oct_fname in tqdm(image_files):
     # if not extract_filename_prefix(image_file).startswith("LE-03-Slide04_Section01_yp0_A"):
@@ -421,3 +424,26 @@ average_dice = total_dice_vhist[EPIDERMIS] / total_samples_vhist #sum all dices 
 print(f"Average dice with virtual histology: {average_dice}")
 average_dice_oct = total_dice_oct[EPIDERMIS] / total_samples_oct
 print(f"Average dice without virtual histology: {average_dice_oct}")
+
+import numpy as np
+from scipy.stats import ttest_ind
+# df["dice_hist"].values
+# df["dice_vhist"].values
+# Generate two random arrays of floats
+array1 = np.random.rand(100)
+array2 = np.random.rand(100)
+array1 = df["dice_oct"].values
+array2 =  df["dice_vhist"].values
+# Perform a two-sample t-test
+t_statistic, p_value = ttest_ind(array1, array2, nan_policy="omit")
+
+# Print the results
+print(f'T-statistic: {t_statistic}')
+print(f'P-value: {p_value}')
+
+# Interpret the results
+alpha = 0.05  # significance level
+if p_value < alpha:
+    print('Reject the null hypothesis: There is a significant difference between the two groups.')
+else:
+    print('Fail to reject the null hypothesis: There is no significant difference between the two groups.')
