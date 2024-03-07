@@ -8,7 +8,12 @@ import os
 from matplotlib.patches import Circle
 import numpy as np
 from scipy.ndimage.measurements import center_of_mass
+import sys
 
+sys.path.append('./OCT2Hist_UseModel')
+
+from SAM_Med2D.segment_anything import sam_model_registry as sammed_model_registry
+from SAM_Med2D.segment_anything.predictor_sammed import SammedPredictor
 
 
 segmenter = None
@@ -81,8 +86,15 @@ class Segmenter():
         self.min_mask_region_area = 500
         self.npoints = npoints
         self.init_points = npoints
-        self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
+        from argparse import Namespace
+        args = Namespace()
+        args.image_size = 256
+        args.encoder_adapter = True
+        args.sam_checkpoint = "/Users/dannybarash/Code/oct/medsam/sam-med2d/OCT2Hist_UseModel/SAM_Med2D/pretrain_model/sam-med2d_b.pth"
+        device = "cpu"
+        #self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
         self.box_prediction_flag = box_prediction_flag
+        self.segment_all = auto_segmentation
         self.point_prediction_flag = point_prediction_flag
         self.grid_prediction_flag = grid_prediction_flag
         self.auto_segmentation = auto_segmentation
@@ -90,10 +102,13 @@ class Segmenter():
         self.init_points = npoints
 
         if Segmenter._predictor is None:
+            model = sammed_model_registry["vit_b"](args).to(device)
+            predictor = SammedPredictor(model)
+            self.sam = model# sam_model_registry["vit_h"](checkpoint=weights_path)
             if torch.cuda.is_available():
                 self.sam.to(device="cuda")
             if not grid_prediction_flag:
-                self.predictor = SamPredictor(self.sam)
+                self.predictor = predictor
                 print("Creating image embeddings ... ", end="")
                 self.predictor.set_image(self.img)
                 print("Done")
