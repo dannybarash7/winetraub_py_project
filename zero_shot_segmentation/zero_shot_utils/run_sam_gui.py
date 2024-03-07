@@ -6,10 +6,13 @@ from segment_anything import sam_model_registry, SamPredictor, SamAutomaticMaskG
 import torch
 import os
 from matplotlib.patches import Circle
+import numpy as np
+from scipy.ndimage.measurements import center_of_mass
+
 
 
 segmenter = None
-def run_gui(img, weights_path, gt_mask = None):
+def run_gui(img, weights_path, gt_mask = None, auto_segmentation= True):
     global segmenter
     if img is None:
         raise Exception("Image file not found.")
@@ -18,8 +21,9 @@ def run_gui(img, weights_path, gt_mask = None):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     elif img.ndim == 2:
         img = np.repeat(img[:, :, np.newaxis], 3, axis=2)
-    segmenter = Segmenter(img, weights_path, gt_mask = gt_mask)
-    # plt.show(block=True)
+    segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask)
+    if not auto_segmentation:
+        plt.show(block=True)
     return segmenter
 
 
@@ -61,21 +65,38 @@ def get_point_grid():
 class Segmenter():
     _predictor = None
 
-    def __init__(self, img, weights_path, npoints=200, box_prediction_flag=True, segment_all=False, gt_mask = None):
+    def __init__(self, img, weights_path,  auto_segmentation, npoints=200, box_prediction_flag=False, point_prediction_flag = True, grid_prediction_flag = False, gt_mask = None):
+        """
+
+        :param img:
+        :param weights_path:
+        :param npoints:
+        :param box_prediction_flag:
+        :param point_prediction_flag:
+        :param auto_segmentation: if automatic is on, and grid_prediction_flag is on, it's full grid, multimask prediction. if box: it's a tight box around the gt. If point: random bg point from the gt box.
+        :param gt_mask:
+        """
+
         self.img = img
         self.min_mask_region_area = 500
         self.npoints = npoints
         self.init_points = npoints
         self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
         self.box_prediction_flag = box_prediction_flag
-        self.segment_all = segment_all
+        self.point_prediction_flag = point_prediction_flag
+        self.grid_prediction_flag = grid_prediction_flag
+        self.auto_segmentation = auto_segmentation
         self.gt_mask = gt_mask
         self.init_points = npoints
+
         if Segmenter._predictor is None:
             if torch.cuda.is_available():
                 self.sam.to(device="cuda")
-            if not segment_all:
+            if not grid_prediction_flag:
                 self.predictor = SamPredictor(self.sam)
+                print("Creating image embeddings ... ", end="")
+                self.predictor.set_image(self.img)
+                print("Done")
             else:
                 point_grids = get_point_grid()
                 self.predictor = SamAutomaticMaskGenerator(
@@ -99,10 +120,6 @@ class Segmenter():
         else:
             self.predictor = Segmenter._predictor
 
-        print("Creating image embeddings ... ", end="")
-        if not self.segment_all:
-            self.predictor.set_image(self.img)
-        print("Done")
 
         self.color_set = set()
         self.current_color = self.pick_color()
@@ -138,7 +155,8 @@ class Segmenter():
         self.full_legend = []
         box = self.ax.get_position()
         self.ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-        self.get_mask()
+        if self.auto_segmentation:
+            self.get_mask()
 
     def save_annotation(self, labels_file_outpath):
         dir_path = os.path.split(labels_file_outpath)[0]
@@ -223,69 +241,102 @@ class Segmenter():
         x1, x2 = np.where(cols)[0][[0, -1]]
         return np.array([x1,y1,x2,y2])
 
-    def get_mask(self):
-        if self.box_prediction_flag and not self.segment_all:
-            if self.gt_mask is None and len(self.add_xs) >= 2 and len(self.add_xs) % 2 == 0:
-                last_2_xs = self.add_xs[-2:]
-                last_2_xs.sort()
-                last_2_ys = self.add_ys[-2:]
-                last_2_ys.sort()
-                user_box = np.array(list([last_2_xs[0], last_2_ys[0], last_2_xs[1], last_2_ys[1]]))
-            elif self.gt_mask is not None:
-                user_box = self.bounding_rectangle(self.gt_mask)
-            else:
-                print("No inputs to box prediction")
-                return
-            if not self.segment_all:
-                masks, _, _ = self.predictor.predict(box=user_box,multimask_output=False)
-            if self.segment_all:
-                masks = self.predictor.predict(self.img)
-            self.npoints = 0
+    def get_center_of_mass(self, boolean_array):
+        # Find the indices where values are True
+        true_indices = np.argwhere(boolean_array)
+        com = np.average(true_indices, axis=0)
+        com = (np.round(com)).astype(int)
+        return com
 
+    def get_mask_for_manual_rect(self):
+        if len(self.add_xs) >= 2 and len(self.add_xs) % 2 == 0:
+            last_2_xs = self.add_xs[-2:]
+            last_2_xs.sort()
+            last_2_ys = self.add_ys[-2:]
+            last_2_ys.sort()
+            user_box = np.array(list([last_2_xs[0], last_2_ys[0], last_2_xs[1], last_2_ys[1]]))
+            masks, _, _ = self.predictor.predict(box=user_box, multimask_output=False)
+            return masks
+
+    def get_mask_for_auto_rect(self):
+        user_box = self.bounding_rectangle(self.gt_mask)
+        if self.gt_mask is None:
+            print("Missing input to auto rect box prediction")
+            return None
+        masks, _, _ = self.predictor.predict(box=user_box, multimask_output=False)
+        return masks
+
+    def points_in_rectangle(self, points, user_box):
+        """
+        Get points from the 2D array that are contained within the specified rectangle.
+
+        Parameters:
+        - points: 2D array of points where each row is (x, y).
+        - x1, y1, x2, y2: Bounding rectangle coordinates.
+
+        Returns:
+        - Array of points within the rectangle.
+        """
+        x1, y1, x2, y2 = user_box
+        mask = (points[:, 0] >= x1) & (points[:, 0] <= x2) & (points[:, 1] >= y1) & (points[:, 1] <= y2)
+        return points[mask]
+    def get_mask_for_auto_point(self):
+        if self.gt_mask is not None:
+            user_box = self.bounding_rectangle(self.gt_mask)
+            com = self.get_center_of_mass(self.gt_mask)
+            neg_points = np.argwhere(~self.gt_mask)
+            neg_points_in_mask = self.points_in_rectangle(neg_points, user_box)
+            # Get the number of rows in the array
+            bg_point = self.sample_row(neg_points_in_mask)
+            if self.gt_mask[com[0], com[1]]:
+                fg_point = com
+            if not self.gt_mask[com[0], com[1]]:
+                pos_points = np.argwhere(self.gt_mask)
+                fg_point = self.sample_row(pos_points)
+            self.add_xs = [fg_point[0]]
+            self.add_ys = [fg_point[1]]
+            self.rem_xs = [bg_point[0]]
+            self.rem_ys = [bg_point[1]]
+            masks, _, _ = self.predictor.predict(point_coords=np.array(list(zip(self.add_xs, self.add_ys)) +
+                                                                       list(zip(self.rem_xs, self.rem_ys))),
+                                                 point_labels=np.array([1] * len(self.add_xs) + [0] * len(self.rem_xs)),
+                                                 multimask_output=False)
+            return masks
         else:
-            #points
-            if not self.segment_all:
-                masks, _, _ = self.predictor.predict(point_coords=np.array(list(zip(self.add_xs, self.add_ys)) +
-                                                                          list(zip(self.rem_xs, self.rem_ys))),
-                                                    point_labels=np.array([1] * len(self.add_xs) + [0] * len(self.rem_xs)),
-                                                    multimask_output=False)
-            else:
-                masks = self.predictor.generate(self.img)
+            print("No inputs to box prediction")
+        return None
 
-        if self.segment_all and masks:
-            for i,mask in enumerate(masks):
-                mask = mask["segmentation"]
-                mask = mask.astype(np.uint8)
-                mask[self.global_masks > 0] = 0
-                mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
-                mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")
-                contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-                xs, ys = [], []
-                for contour in contours:  # nan to disconnect contours
-                    xs.extend(contour[:, 0, 0].tolist() + [np.nan])
-                    ys.extend(contour[:, 0, 1].tolist() + [np.nan])
-                self.contour_plot.set_data(xs, ys)
-                self.masks.append(mask)
-                self.mask_data[:, :, 3] = mask * self.opacity
-                # self.mask_plot.set_data(self.mask_data)
-                # self.fig.canvas.draw()
+    def sample_row(self, neg_points_in_mask):
+        num_rows = neg_points_in_mask.shape[0]
+        random_index = np.random.randint(0, num_rows)
+        bg_point = neg_points_in_mask[random_index]
+        return bg_point
 
-            # #sort segmentation boxes by y location
-            # #get the second from top
-            # bboxes = sorted(masks, key = lambda mask: mask['bbox'][1])
-            # for m in bboxes:
-            #     print(m["bbox"])
-            #     print(m["area"])
-            # # filter by area
-            # minimal_area = 50000
-            # bboxes = list(filter(lambda box: box["area"] > minimal_area, bboxes))
-            # mask = bboxes[1]['segmentation'].astype(np.uint8)
-        else:
-            mask = masks[0].astype(np.uint8)
+    def handle_single_mask(self, masks):
+        mask = masks[0].astype(np.uint8)
+        mask[self.global_masks > 0] = 0
+        mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
+        mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")
+        contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        xs, ys = [], []
+        for contour in contours:  # nan to disconnect contours
+            xs.extend(contour[:, 0, 0].tolist() + [np.nan])
+            ys.extend(contour[:, 0, 1].tolist() + [np.nan])
+        self.contour_plot.set_data(xs, ys)
+        self.masks.append(mask)
+        self.mask_data[:, :, 3] = mask * self.opacity
+        self.mask_plot.set_data(self.mask_data)
+        self.fig.canvas.draw()
+
+
+
+    def handle_multimask(self, masks):
+        for i, mask in enumerate(masks):
+            mask = mask["segmentation"]
+            mask = mask.astype(np.uint8)
             mask[self.global_masks > 0] = 0
             mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
             mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")
-
             contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
             xs, ys = [], []
             for contour in contours:  # nan to disconnect contours
@@ -294,8 +345,27 @@ class Segmenter():
             self.contour_plot.set_data(xs, ys)
             self.masks.append(mask)
             self.mask_data[:, :, 3] = mask * self.opacity
-            self.mask_plot.set_data(self.mask_data)
-            self.fig.canvas.draw()
+
+    def get_mask(self):
+        if self.box_prediction_flag and not self.auto_segmentation:
+            masks = self.get_mask_for_manual_rect()
+            if masks is not None:
+                self.handle_single_mask(masks)
+        if self.point_prediction_flag and not self.auto_segmentation:
+            raise Exception("manual point_prediction_flag WIP")
+        elif self.box_prediction_flag and self.auto_segmentation:
+            masks = self.get_mask_for_auto_rect()
+            self.handle_single_mask(masks)
+        elif self.point_prediction_flag and self.auto_segmentation:
+            masks = self.get_mask_for_auto_point()
+            self.handle_single_mask(masks)
+        elif self.grid_prediction_flag and self.auto_segmentation:
+            masks = self.predictor.generate(self.img)
+            self.handle_multimask(masks)
+        else:
+            raise Exception("Bad flag combination")
+
+
 
     def undo(self):
         if len(self.trace) == 0:  # undo last mask

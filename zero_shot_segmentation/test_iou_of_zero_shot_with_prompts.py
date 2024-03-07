@@ -242,7 +242,7 @@ for oct_fname in tqdm(image_files):
     if is_oct:
         print("OCT segmentation")
         oct_mask, _, crop_args, n_points_used, warped_mask_true = predict(image_path, mask_true, weights_path=CHECKPOINT_PATH,
-                                                                          create_vhist=False, gt_mask = mask_true)
+                                                                          create_vhist=False)
 
         cropped_histology_gt = crop(warped_mask_true, **crop_args)
         # save image to disk
@@ -290,7 +290,7 @@ for oct_fname in tqdm(image_files):
         print("histology segmentation")
 
         if segment_real_hist:
-            histology_mask, _, crop_args, n_points_used, warped_mask_true = predict(image_path, mask_true, weights_path=CHECKPOINT_PATH, create_vhist=False, gt_mask = mask_true)
+            histology_mask, _, crop_args, n_points_used, warped_mask_true = predict(image_path, mask_true, weights_path=CHECKPOINT_PATH, create_vhist=False)
             if warped_mask_true is None or warped_mask_true.sum().sum() == 0:
                 print(f"Could not segment {image_path}.")
                 continue
@@ -337,7 +337,7 @@ for oct_fname in tqdm(image_files):
         #v. histology segmentation
         print("virtual histology segmentation")
         path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
-        cropped_vhist_mask, cropped_vhist, crop_args, n_points_used, warped_vhist_mask_true = predict(image_path, mask_true, weights_path = CHECKPOINT_PATH, create_vhist= create_virtual_histology, output_vhist_path=path, gt_mask = mask_true )
+        cropped_vhist_mask, cropped_vhist, crop_args, n_points_used, warped_vhist_mask_true = predict(image_path, mask_true, weights_path = CHECKPOINT_PATH, create_vhist= create_virtual_histology, output_vhist_path=path)
         cropped_vhist_mask_true = crop(warped_vhist_mask_true, **crop_args)
         if is_virtual_histology:
             cropped_vhist = roboflow_next_img
