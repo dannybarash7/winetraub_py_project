@@ -42,7 +42,7 @@ rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
 version = 2
 CHECKPOINT_PATH = "weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 
-roboflow_annot_dataset_dir = f"/Users/dannybarash/Code/oct/medsam/sam-med2d/paper_data-2/test" #os.path.join(os.getcwd(),f"{rf_project_name}-{version}/test")
+roboflow_annot_dataset_dir = os.path.join(os.getcwd(),f"./paper_data-2/test")
 #TODO: change this:
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
 real_histology_dir = raw_oct_dataset_dir
@@ -133,9 +133,6 @@ dataset = download_images_and_masks(rf_api_key, rf_workspace, rf_project_name, r
 DEVICE = torch.device('mps')  # 'cpu'
 MODEL_TYPE = "vit_h"
 
-# sam = segment_anything.sam_model_registry[MODEL_TYPE](checkpoint=CHECKPOINT_PATH).to(device=DEVICE)
-# sam = segment_anything.sam_model_registry[MODEL_TYPE](args).to(device=DEVICE)
-# predictor = segment_anything.SamPredictor(sam)
 # Get the list of image files
 image_files = [f for f in os.listdir(roboflow_annot_dataset_dir) if f.endswith(".jpg")]
 image_files.sort()
