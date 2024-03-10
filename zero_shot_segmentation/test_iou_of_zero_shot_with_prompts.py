@@ -19,7 +19,6 @@ import pandas
 import pandas as pd
 import torch
 from matplotlib.patches import Patch
-sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
 import segment_anything
 from tqdm import tqdm
 from OCT2Hist_UseModel.utils.masking import get_sam_input_points, show_points, show_mask, mask_gel_and_low_signal
@@ -427,8 +426,8 @@ from scipy.stats import ttest_ind
 # df["dice_hist"].values
 # df["dice_vhist"].values
 # Generate two random arrays of floats
-array1 = np.random.rand(100)
-array2 = np.random.rand(100)
+# array1 = np.random.rand(100)
+# array2 = np.random.rand(100)
 array1 = df["dice_oct"].values
 array2 =  df["dice_vhist"].values
 # Perform a two-sample t-test

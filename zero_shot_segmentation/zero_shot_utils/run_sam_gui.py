@@ -8,7 +8,7 @@ import os
 from matplotlib.patches import Circle
 import numpy as np
 from scipy.ndimage.measurements import center_of_mass
-
+N_POINTS_RAND = 20
 
 
 segmenter = None
@@ -285,32 +285,27 @@ class Segmenter():
             user_box = self.bounding_rectangle(self.gt_mask)
             com = self.get_center_of_mass(self.gt_mask)
             neg_points = np.argwhere(~self.gt_mask)
+            #taking negative (background) points in the bounding box of the gt mask
             neg_points_in_mask = self.points_in_rectangle(neg_points, user_box)
             # Get the number of rows in the array
-            bg_point = self.sample_row(neg_points_in_mask)
+            remove_pts = self.sample_points(neg_points_in_mask)
+            pos_points = np.argwhere(self.gt_mask)
+            add_pts = self.sample_points(pos_points)
             if self.gt_mask[com[0], com[1]]:
-                fg_point = com
-            if not self.gt_mask[com[0], com[1]]:
-                pos_points = np.argwhere(self.gt_mask)
-                fg_point = self.sample_row(pos_points)
-            self.add_xs = [fg_point[0]]
-            self.add_ys = [fg_point[1]]
-            self.rem_xs = [bg_point[0]]
-            self.rem_ys = [bg_point[1]]
-            masks, _, _ = self.predictor.predict(point_coords=np.array(list(zip(self.add_xs, self.add_ys)) +
-                                                                       list(zip(self.rem_xs, self.rem_ys))),
-                                                 point_labels=np.array([1] * len(self.add_xs) + [0] * len(self.rem_xs)),
+                add_pts[0] = [com[0], com[1]]
+            masks, _, _ = self.predictor.predict(point_coords=np.concatenate([remove_pts,add_pts]),
+                                                 point_labels=np.array([1] * len(remove_pts) + [0] * len(add_pts)),
                                                  multimask_output=False)
             return masks
         else:
             print("No inputs to box prediction")
         return None
 
-    def sample_row(self, neg_points_in_mask):
-        num_rows = neg_points_in_mask.shape[0]
-        random_index = np.random.randint(0, num_rows)
-        bg_point = neg_points_in_mask[random_index]
-        return bg_point
+    def sample_points(self, points_in_mask):
+        num_rows = points_in_mask.shape[0]
+        random_index = np.random.randint(0, num_rows, size = N_POINTS_RAND)
+        points_xy_in_mask = points_in_mask[random_index]
+        return points_xy_in_mask
 
     def handle_single_mask(self, masks):
         mask = masks[0].astype(np.uint8)
