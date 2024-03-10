@@ -17,7 +17,7 @@ from SAM_Med2D.segment_anything.predictor_sammed import SammedPredictor
 
 
 segmenter = None
-def run_gui(img, weights_path, gt_mask = None, auto_segmentation= True):
+def run_gui(img, weights_path, args, gt_mask = None, auto_segmentation= True):
     global segmenter
     if img is None:
         raise Exception("Image file not found.")
@@ -26,7 +26,14 @@ def run_gui(img, weights_path, gt_mask = None, auto_segmentation= True):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     elif img.ndim == 2:
         img = np.repeat(img[:, :, np.newaxis], 3, axis=2)
-    segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask)
+
+    if args.point:
+        segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask, point_prediction_flag=True)
+    elif args.box:
+        segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask, box_prediction_flag=True)
+    elif args.grid:
+        segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask=gt_mask,
+                              grid_prediction_flag=True)
     if not auto_segmentation:
         plt.show(block=True)
     return segmenter
@@ -70,7 +77,7 @@ def get_point_grid():
 class Segmenter():
     _predictor = None
 
-    def __init__(self, img, weights_path,  auto_segmentation, npoints=200, box_prediction_flag=False, point_prediction_flag = True, grid_prediction_flag = False, gt_mask = None):
+    def __init__(self, img, weights_path,  auto_segmentation, npoints=200, box_prediction_flag=False, point_prediction_flag = False, grid_prediction_flag = False, gt_mask = None):
         """
 
         :param img:
@@ -448,8 +455,8 @@ class Segmenter():
         mask = np.isin(regions, fill_labels)
         return mask
 
-def run_gui_segmentation(img, weights_path, gt_mask):
-    segmenter = run_gui(img, weights_path, gt_mask)
+def run_gui_segmentation(img, weights_path, gt_mask, args):
+    segmenter = run_gui(img, weights_path, args, gt_mask)
     segmenter.global_masks[segmenter.global_masks>0]=1
     points_used = segmenter.init_points - segmenter.npoints
     #Danny: masks is for all masks, global masks is for the unified fixe
