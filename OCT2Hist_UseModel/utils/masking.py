@@ -307,10 +307,19 @@ def get_sam_input_points(no_gel_filt_img, virtual_histology_image = None):
 
 
 # visualize
-def show_mask(mask, ax, random_color=False, alpha = 0.6, ):
+def show_mask(mask, ax, secondcolor=False, alpha = 0.6, outline = False):
 
-    if random_color:
-        color = np.concatenate([np.random.random(3), np.array([alpha])], axis=0)
+    if outline:
+      alpha = 1.0
+      mask_8bit = mask.astype(np.uint8)
+      contours, _ = cv2.findContours(mask_8bit.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+      # Create an empty image for visualization
+      outline_image = np.zeros_like(mask_8bit)
+      # Draw the contours on the empty image
+      cv2.drawContours(outline_image, contours, -1, (255), thickness=4)
+      mask = outline_image.astype(np.bool_)
+    if secondcolor:
+        # color = np.concatenate([np.random.random(3), np.array([alpha])], axis=0)
         color = np.array([8 / 255, 255 / 255, 128 / 255, alpha])
     else:
         color = np.array([0 / 255, 128 / 255, 255 / 255, alpha])
