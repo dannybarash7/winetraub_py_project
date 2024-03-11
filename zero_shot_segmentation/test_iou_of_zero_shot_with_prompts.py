@@ -20,13 +20,15 @@ import pandas
 import pandas as pd
 import torch
 from matplotlib.patches import Patch
-import segment_anything
 from tqdm import tqdm
 from OCT2Hist_UseModel.utils.masking import get_sam_input_points, show_points, show_mask, mask_gel_and_low_signal
 
 from OCT2Hist_UseModel.utils.crop import crop
 from zero_shot_segmentation.zero_shot_utils.predict_mask_on_oct_interactive import predict
 sys.path.append('./OCT2Hist_UseModel')
+sys.path.append('./MedSam')
+import segment_anything
+
 # from google.colab import drive
 sys.path.append('./zero_shot_segmentation')
 import cv2
