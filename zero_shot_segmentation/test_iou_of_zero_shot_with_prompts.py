@@ -14,7 +14,7 @@ To get started,
 """
 import argparse
 import sys
-
+import matplotlib.patches as patches
 import numpy
 import pandas
 import pandas as pd
@@ -98,7 +98,7 @@ def calculate_iou(mask_true, mask_pred, class_id):
     return iou, dice
 
 def calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id):
-    max_dice,max_iou = 0.0,0.0
+    max_dice,max_iou = -1.0,-1.0
     best_mask = None
     for mask_pred in mask_predictions:
         iou,dice = calculate_iou(mask_true, mask_pred, class_id)
@@ -152,17 +152,16 @@ def main(args):
     visualize_input_gt = False
     # visualize_input_hist = False
     visualize_pred_vs_gt_vhist = False
-    visualize_pred_vs_gt_oct = False
+    visualize_pred_vs_gt_oct = True
     visualize_pred_over_vhist = False
     visualize_input_vhist = False
-    segment_real_hist = True
+    segment_real_hist = False
     skip_real_histology = False
     create_virtual_histology = True
-    should_crop_mask = True
     start_from_n = 1
-    take_first_n_images = 5
+    take_first_n_images = args.take_first_n if args.take_first_n > 0 else -1
     is_input_always_oct = True
-    output_image_dir = "./images/point_prediction"
+    output_image_dir = args.output_dir
     if not os.path.exists(output_image_dir):
         os.makedirs(output_image_dir)
     index_array = [extract_filename_prefix(file) for file in image_files]
@@ -241,7 +240,7 @@ def main(args):
         # oct
         if is_oct:
             print("OCT segmentation")
-            oct_mask, _, crop_args, n_points_used, warped_mask_true = predict(image_path, mask_true,
+            oct_mask, _, crop_args, n_points_used, warped_mask_true, prompts , bounding_rectangle = predict(image_path, mask_true,
                                                                               args=args,
                                                                               weights_path=CHECKPOINT_PATH,
                                                                               create_vhist=False)
@@ -253,8 +252,7 @@ def main(args):
             # save image to disk
             cv2.imwrite(path, cropped_oct_image)
             # Calculate IoU for each class# DERMIS
-            if should_crop_mask:
-                mask_true = cropped_histology_gt
+            mask_true = cropped_histology_gt
             if warped_mask_true is None or warped_mask_true.sum().sum() == 0:
                 print(f"Could not segment OCT image {image_path}.")
             else:
@@ -268,22 +266,8 @@ def main(args):
                 df.loc[image_name, "nclicks_oct"] = n_points_used
 
                 if visualize_pred_vs_gt_oct:
-                    plt.figure(figsize=(5, 5))
-                    plt.imshow(cropped_oct_image, cmap="gray")
-                    c1 = show_mask(best_mask, plt.gca())
-                    c2 = show_mask(cropped_histology_gt, plt.gca(), random_color=True, alpha=0.2)
-                    plt.axis('off')
-                    plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}")
-                    plt.title(f"{image_name}")
-                    legend_elements = [
-                        Patch(color=c1, alpha=1, label='Yours'),
-                        Patch(color=c2, alpha=1, label='GT'),
-                    ]
-                    plt.legend(handles=legend_elements)
-                    fpath = f'{os.path.join(output_image_dir, image_name)}_oct_pred'
-                    plt.savefig(f'{fpath}.png')
-                    save_diff_image(best_mask, cropped_histology_gt, fpath)
-                    plt.close()
+                    visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dice, image_name,
+                                         output_image_dir, save_diff_image, prompts)
 
                 total_samples_oct += 1
 
@@ -292,7 +276,7 @@ def main(args):
             print("histology segmentation")
 
             if segment_real_hist:
-                histology_mask, _, crop_args, n_points_used, warped_mask_true = predict(image_path, mask_true,
+                histology_mask, _, crop_args, n_points_used, warped_mask_true, prompts , bounding_rectangle = predict(image_path, mask_true,
                                                                                         args=args,
                                                                                         weights_path=CHECKPOINT_PATH,
                                                                                         create_vhist=False)
@@ -314,7 +298,7 @@ def main(args):
                 plt.figure(figsize=(5, 5))
                 plt.imshow(roboflow_next_img)
                 c1 = show_mask(histology_mask, plt.gca())
-                c2 = show_mask(mask_true, plt.gca(), random_color=True, alpha=0.2)
+                c2 = show_mask(mask_true, plt.gca(), secondcolor=True, alpha=0.2)
                 plt.axis('off')
                 plt.suptitle(f"Real histology segmentation: iou {epidermis_iou_real_hist:.2f}")
                 plt.title(f"{image_name}")
@@ -341,7 +325,7 @@ def main(args):
             # v. histology segmentation
             print("virtual histology segmentation")
             path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
-            cropped_vhist_mask, cropped_vhist, crop_args, n_points_used, warped_vhist_mask_true = predict(image_path,
+            cropped_vhist_mask, cropped_vhist, crop_args, n_points_used, warped_vhist_mask_true, prompts , bounding_rectangle = predict(image_path,
                                                                                                           mask_true,
                                                                                                           args = args,
                                                                                                           weights_path=CHECKPOINT_PATH,
@@ -384,7 +368,7 @@ def main(args):
                 plt.figure(figsize=(5, 5))
                 plt.imshow(cropped_vhist)
                 c1 = show_mask(best_mask, plt.gca())
-                c2 = show_mask(mask_true, plt.gca(), random_color=True, alpha=0.6)
+                c2 = show_mask(mask_true, plt.gca(), secondcolor=True, alpha=0.6)
                 plt.axis('off')
                 plt.suptitle(f"vhist segmentation: iou {epidermis_iou_vhist:.2f}")
                 plt.title(f"{image_name}")
@@ -447,10 +431,53 @@ def main(args):
         print('Reject the null hypothesis: There is a significant difference between the two groups.')
     else:
         print('Fail to reject the null hypothesis: There is no significant difference between the two groups.')
+    str_to_save = f'T-statistic: {t_statistic}, P-value: {p_value}, alpha: {alpha}, p_value < alpha: {p_value < alpha}'
+    file_path = os.path.join(output_image_dir, 'p_value.txt')
+    with open(file_path, 'w+') as file:
+        file.write(str_to_save)
+def visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dice, image_name, output_image_dir,
+                         save_diff_image, prompts):
+    plt.figure(figsize=(5, 5))
+    plt.imshow(cropped_oct_image, cmap="gray")
+    c1 = show_mask(best_mask, plt.gca())
+    c2 = show_mask(cropped_histology_gt, plt.gca(), secondcolor=True, outline=True)
+    # c2 = show_mask(cropped_histology_gt, plt.gca(), random_color=True, alpha=0.2)
+    plt.axis('off')
+    # plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}")
+
+    text_to_display = f"dice {dice:.2f}"
+    plt.text(0.02, 0.9, text_to_display, color='white', fontsize=12, transform=plt.gca().transAxes)
+    if args.point:
+        add_pts,remove_pts = prompts["add"], prompts["remove"]
+        #overlay points
+        plt.scatter(remove_pts[:, 1], remove_pts[:, 0], color='red', marker='o', s=10)
+        plt.scatter(add_pts[:, 1], add_pts[:, 0], color='lightgreen', marker='+', s=15)
+    if args.box:
+        #overlay box
+        rectangle_coords = prompts['box']
+        rectangle = patches.Rectangle((rectangle_coords[0], rectangle_coords[1]),
+                                      rectangle_coords[2] - rectangle_coords[0],
+                                      rectangle_coords[3] - rectangle_coords[1], linewidth=1, edgecolor='yellow',
+                                      facecolor='none')
+        plt.gca().add_patch(rectangle)
+    # plt.title(f"{image_name}")
+    # legend_elements = [
+    #     Patch(color=c1, alpha=1, label='Yours'),
+    #     Patch(color=c2, alpha=1, label='GT'),
+    # ]
+    # plt.legend(handles=legend_elements)
+    fpath = f'{os.path.join(output_image_dir, image_name)}_oct_pred'
+    plt.savefig(f'{fpath}.png', bbox_inches='tight', pad_inches=0)
+    save_diff_image(best_mask, cropped_histology_gt, fpath)
+    plt.close()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process point, box, and grid arguments.")
     group = parser.add_mutually_exclusive_group()
+    parser.add_argument("--output_dir", help="Specify output directory, e.g. './images/point_prediction' ")
+    parser.add_argument("--take_first_n", help="take first n images", default=-1, type=int)
+    parser.add_argument("--npoints", help="number_of_prediction_points", default=10, type=int)
     group.add_argument("--point", action="store_true", help="Specify a point.")
     group.add_argument("--box", action="store_true", help="Specify a box.")
     group.add_argument("--grid", action="store_true", help="Specify a grid.")
@@ -466,5 +493,7 @@ if __name__ == "__main__":
     #     process_grid()
     if not args.point and not args.box and not args.grid:
         print("Please specify one of --point, --box, or --grid.")
+    elif not args.output_dir:
+        print("Please specify output dir.")
     else:
         main(args)

@@ -1,3 +1,6 @@
+from copy import deepcopy
+
+import numpy
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
@@ -239,3 +242,44 @@ def sam_masking(inject_real_histology_and_segmentation = False):
 
     masks2 = mask_generator_2.generate(histology_image_resized)
     return masks2
+
+def remove_fill(matrix):
+    start_row, start_col = 1,1
+    rows, cols = len(matrix), len(matrix[0])
+    output = deepcopy(matrix)
+
+    def is_valid(row, col):
+        return (0 < row < rows-1) and (0 < col < cols-1)
+
+    def flood_fill(row, col):
+        if not is_valid(row, col):
+            output[row][col] = matrix[row][col]
+            return
+
+        four_neighbours = matrix[row-1][col] & matrix[row][col-1] & matrix[row+1][col] & matrix[row][col + 1]
+        two_neighbours_vert = False#matrix[row - 1][col] & matrix[row + 1][col]
+        two_neighbours_horiz = False#matrix[row][col - 1] & matrix[row][col + 1]
+        if four_neighbours or two_neighbours_vert or two_neighbours_horiz:
+            output[row][col] = False  # Mark the current cell as visited
+
+        # Recursively visit neighboring cells
+        flood_fill(row + 1, col)
+        flood_fill(row, col + 1)
+
+    # Perform flood-fill starting from the specified coordinates
+    flood_fill(start_row, start_col)
+    return output
+def bounding_rectangle(array):
+    rows, cols = np.any(array, axis=1), np.any(array, axis=0)
+    y1, y2 = np.where(rows)[0][[0, -1]]
+    x1, x2 = np.where(cols)[0][[0, -1]]
+    return np.array([x1,y1,x2,y2])
+
+
+def get_center_of_mass(boolean_array):
+    # Find the indices where values are True
+    true_indices = np.argwhere(boolean_array)
+    com = np.average(true_indices, axis=0)
+    com = (np.round(com)).astype(int)
+    return com
+

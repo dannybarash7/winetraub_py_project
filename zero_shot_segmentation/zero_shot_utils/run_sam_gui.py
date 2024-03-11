@@ -1,4 +1,3 @@
-import numpy as np
 from matplotlib import pyplot as plt
 import cv2
 import matplotlib as mpl
@@ -7,8 +6,9 @@ import torch
 import os
 from matplotlib.patches import Circle
 import numpy as np
-from scipy.ndimage.measurements import center_of_mass
-N_POINTS_RAND = 20
+
+from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass
+
 
 
 segmenter = None
@@ -23,7 +23,7 @@ def run_gui(img, weights_path, args, gt_mask = None, auto_segmentation= True):
         img = np.repeat(img[:, :, np.newaxis], 3, axis=2)
 
     if args.point:
-        segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask, point_prediction_flag=True)
+        segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask, point_prediction_flag=True, npoints = args.npoints)
     elif args.box:
         segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask, box_prediction_flag=True)
     elif args.grid:
@@ -72,7 +72,7 @@ def get_point_grid():
 class Segmenter():
     _predictor = None
 
-    def __init__(self, img, weights_path,  auto_segmentation, npoints=200, box_prediction_flag=False, point_prediction_flag = False, grid_prediction_flag = False, gt_mask = None):
+    def __init__(self, img, weights_path,  auto_segmentation, npoints = 0, box_prediction_flag=False, point_prediction_flag = False, grid_prediction_flag = False, gt_mask = None, remaining_points = 20):
         """
 
         :param img:
@@ -87,6 +87,7 @@ class Segmenter():
         self.img = img
         self.min_mask_region_area = 500
         self.npoints = npoints
+        self.remaining_points = remaining_points
         self.init_points = npoints
         self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
         self.box_prediction_flag = box_prediction_flag
@@ -105,23 +106,31 @@ class Segmenter():
                 self.predictor.set_image(self.img)
                 print("Done")
             else:
-                point_grids = get_point_grid()
                 self.predictor = SamAutomaticMaskGenerator(
                     self.sam,
-                    points_per_side=32,  # 32 relevant
-                    points_per_batch=64,
                     pred_iou_thresh=0.0,  # relevant
-                    stability_score_thresh=0.0,  # relevant (default is 0.95)
-                    stability_score_offset=1.0,  # relevant
+                    stability_score_thresh=0.0,
                     box_nms_thresh=1.0,  # relevant
                     crop_n_layers=0,  # relevant
                     crop_nms_thresh=1.0,  # relevant
-                    crop_overlap_ratio=512 / 1500,  # relevant
-                    crop_n_points_downscale_factor=1,  # relevant
-                    point_grids=None,  # point_grids,
-                    min_mask_region_area=0,  # relevant, default is 0
-                    # output_mode: str = "binary_mask",
                 )
+                # point_grids = get_point_grid()
+                # self.predictor = SamAutomaticMaskGenerator(
+                #     self.sam,
+                #     points_per_side=32,  # 32 relevant
+                #     points_per_batch=64,
+                #     pred_iou_thresh=0.0,  # relevant
+                #     stability_score_thresh=0.0,  # relevant (default is 0.95)
+                #     stability_score_offset=1.0,  # relevant
+                #     box_nms_thresh=1.0,  # relevant
+                #     crop_n_layers=0,  # relevant
+                #     crop_nms_thresh=1.0,  # relevant
+                #     crop_overlap_ratio=512 / 1500,  # relevant
+                #     crop_n_points_downscale_factor=1,  # relevant
+                #     point_grids=None,  # point_grids,
+                #     min_mask_region_area=0,  # relevant, default is 0
+                #     # output_mode: str = "binary_mask",
+                # )
             # save for later
             Segmenter._predictor = self.predictor
         else:
@@ -134,7 +143,7 @@ class Segmenter():
 
         self.fig, self.ax = plt.subplots(figsize=(10 * (self.img.shape[1] / max(self.img.shape)),
                                                   10 * (self.img.shape[0] / max(self.img.shape))))
-        self.fig.suptitle(f'Segment Anything GUI: {self.npoints} points remain', fontsize=16)
+        self.fig.suptitle(f'Segment Anything GUI: {self.remaining_points} points remain', fontsize=16)
         self.ax.set_title("Press 'h' to show/hide commands.", fontsize=10)
         self.im = self.ax.imshow(self.img, cmap=mpl.cm.gray)
         self.ax.autoscale(False)
@@ -181,9 +190,9 @@ class Segmenter():
 
     def _on_key(self, event):
         if event.key == 'z':
-            if self.npoints<self.init_points:
-                self.npoints+=1
-                self.fig.suptitle(f'Segment Anything GUI: {self.npoints} points remain', fontsize=16)
+            if self.remaining_points<self.init_points:
+                self.remaining_points+=1
+                self.fig.suptitle(f'Segment Anything GUI: {self.remaining_points} points remain', fontsize=16)
             self.undo()
 
 
@@ -208,9 +217,9 @@ class Segmenter():
             self.fig.canvas.draw()
 
     def _on_click(self, event):
-        if self.npoints > 0:
-            self.npoints -= 1
-            self.fig.suptitle(f'Segment Anything GUI: {self.npoints} points remain', fontsize=16)
+        if self.remaining_points > 0:
+            self.remaining_points -= 1
+            self.fig.suptitle(f'Segment Anything GUI: {self.remaining_points} points remain', fontsize=16)
         else:
             return
         if event.inaxes != self.ax and (event.button in [1, 3]): return
@@ -242,19 +251,6 @@ class Segmenter():
         self.mask_plot.set_data(self.mask_data)
         self.fig.canvas.draw()
 
-    def bounding_rectangle(self,array):
-        rows, cols = np.any(array, axis=1), np.any(array, axis=0)
-        y1, y2 = np.where(rows)[0][[0, -1]]
-        x1, x2 = np.where(cols)[0][[0, -1]]
-        return np.array([x1,y1,x2,y2])
-
-    def get_center_of_mass(self, boolean_array):
-        # Find the indices where values are True
-        true_indices = np.argwhere(boolean_array)
-        com = np.average(true_indices, axis=0)
-        com = (np.round(com)).astype(int)
-        return com
-
     def get_mask_for_manual_rect(self):
         if len(self.add_xs) >= 2 and len(self.add_xs) % 2 == 0:
             last_2_xs = self.add_xs[-2:]
@@ -266,11 +262,11 @@ class Segmenter():
             return masks
 
     def get_mask_for_auto_rect(self):
-        user_box = self.bounding_rectangle(self.gt_mask)
+        self.user_box = bounding_rectangle(self.gt_mask)
         if self.gt_mask is None:
             print("Missing input to auto rect box prediction")
             return None
-        masks, _, _ = self.predictor.predict(box=user_box, multimask_output=False)
+        masks, _, _ = self.predictor.predict(box=self.user_box, multimask_output=False)
         return masks
 
     def points_in_rectangle(self, points, user_box):
@@ -285,21 +281,25 @@ class Segmenter():
         - Array of points within the rectangle.
         """
         x1, y1, x2, y2 = user_box
-        mask = (points[:, 0] >= x1) & (points[:, 0] <= x2) & (points[:, 1] >= y1) & (points[:, 1] <= y2)
+        mask = (points[:, 1] >= x1) & (points[:, 1] <= x2) & (points[:, 0] >= y1) & (points[:, 0] <= y2)
         return points[mask]
     def get_mask_for_auto_point(self):
         if self.gt_mask is not None:
-            user_box = self.bounding_rectangle(self.gt_mask)
-            com = self.get_center_of_mass(self.gt_mask)
+            user_box = bounding_rectangle(self.gt_mask)
+            com = get_center_of_mass(self.gt_mask)
             neg_points = np.argwhere(~self.gt_mask)
             #taking negative (background) points in the bounding box of the gt mask
-            neg_points_in_mask = self.points_in_rectangle(neg_points, user_box)
+            neg_points_in_gt_bbox = self.points_in_rectangle(neg_points, user_box)
             # Get the number of rows in the array
-            remove_pts = self.sample_points(neg_points_in_mask)
+            remove_pts = self.sample_points(neg_points_in_gt_bbox)
             pos_points = np.argwhere(self.gt_mask)
+            # pos_points_in_gt_bbox = self.points_in_rectangle(pos_points, user_box)
+            # assert len(pos_points_in_gt_bbox) + len(neg_points_in_gt_bbox) == (user_box[2]-user_box[0] ) * (user_box[3]-user_box[1])
             add_pts = self.sample_points(pos_points)
             if self.gt_mask[com[0], com[1]]:
                 add_pts[0] = [com[0], com[1]]
+            self.add_pts = add_pts
+            self.remove_pts = remove_pts
             masks, _, _ = self.predictor.predict(point_coords=np.concatenate([remove_pts,add_pts]),
                                                  point_labels=np.array([1] * len(remove_pts) + [0] * len(add_pts)),
                                                  multimask_output=False)
@@ -310,7 +310,7 @@ class Segmenter():
 
     def sample_points(self, points_in_mask):
         num_rows = points_in_mask.shape[0]
-        random_index = np.random.randint(0, num_rows, size = N_POINTS_RAND)
+        random_index = np.random.randint(0, num_rows, size = self.npoints)
         points_xy_in_mask = points_in_mask[random_index]
         return points_xy_in_mask
 
@@ -443,6 +443,19 @@ class Segmenter():
 def run_gui_segmentation(img, weights_path, gt_mask, args):
     segmenter = run_gui(img, weights_path, args, gt_mask)
     segmenter.global_masks[segmenter.global_masks>0]=1
-    points_used = segmenter.init_points - segmenter.npoints
-    #Danny: masks is for all masks, global masks is for the unified fixe
-    return segmenter.masks, points_used#, segmenter.global_masks
+    points_used = segmenter.init_points - segmenter.remaining_points
+    #Danny: masks is for all masks, global masks is for the unified fixes
+    #segmenter.masks holds the predicted mask
+    #in case of point based predictions:
+    """
+            self.add_pts = add_pts
+            self.remove_pts = remove_pts
+    """
+    #hold the positive and negative points.
+    #in case of rectangle based predictions, self.user_box contains it.
+
+    if args.point:
+        prompts = {"add":segmenter.add_pts, "remove":segmenter.remove_pts}
+    else:
+        prompts = {"box":segmenter.user_box}
+    return segmenter.masks, points_used, prompts
