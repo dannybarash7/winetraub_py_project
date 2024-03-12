@@ -9,6 +9,7 @@ import numpy as np
 
 from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass
 import sys
+sys.path.append("./OCT2Hist_UseModel/")
 from SAM_Med2D.segment_anything import sam_model_registry as sammed_model_registry
 from SAM_Med2D.segment_anything.predictor_sammed import SammedPredictor
 
