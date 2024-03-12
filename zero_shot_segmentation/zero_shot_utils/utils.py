@@ -283,3 +283,24 @@ def get_center_of_mass(boolean_array):
     com = (np.round(com)).astype(int)
     return com
 
+def pad(image):
+    height, width = image.shape[:2]
+    OCT2HIST_HEIGHT = 512
+    OCT2HIST_WIDTH = 1024
+    # Calculate padding amounts
+    pad_height = max(0, OCT2HIST_HEIGHT - height)
+    pad_width = max(0, OCT2HIST_WIDTH - width)
+
+    # Calculate padding for each side
+    pad_top = 0
+    pad_bottom = pad_height
+    pad_left = 0
+    pad_right = pad_width
+
+    # Pad the image
+    if len(image.shape) == 2:
+        padded_image = np.pad(image, ((pad_top, pad_bottom), (pad_left, pad_right)), mode='constant')
+    else:
+        padded_image = np.pad(image, ((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)), mode='constant')
+
+    return padded_image

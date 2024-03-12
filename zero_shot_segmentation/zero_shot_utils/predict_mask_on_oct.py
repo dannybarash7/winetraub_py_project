@@ -2,7 +2,7 @@
 import cv2
 import matplotlib.pyplot as plt
 
-from OCT2Hist_UseModel.utils.crop import crop_oct
+from OCT2Hist_UseModel.utils.crop import crop_oct_for_pix2pix
 from OCT2Hist_UseModel.utils.masking import get_sam_input_points, show_points, show_mask, mask_gel_and_low_signal
 from OCT2Hist_UseModel import oct2hist
 
@@ -20,7 +20,7 @@ def predict(oct_input_image_path, predictor):
     microns_per_pixel_x = 1
 
     # no need to crop - the current folder contains pre cropped images.
-    cropped, crop_args =  crop_oct(oct_image)
+    cropped, crop_args =  crop_oct_for_pix2pix(oct_image)
 
     # workaround: for some reason the images look close to the target shape, but not exactly.
     #oct_image = cv2.resize(cropped, [1024, 512], interpolation=cv2.INTER_AREA)

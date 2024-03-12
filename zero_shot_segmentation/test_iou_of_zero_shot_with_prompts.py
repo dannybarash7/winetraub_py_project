@@ -153,14 +153,14 @@ def main(args):
     # visualize_input_hist = False
     visualize_pred_vs_gt_vhist = False
     visualize_pred_vs_gt_oct = True
-    visualize_pred_over_vhist = False
-    visualize_input_vhist = False
+    visualize_pred_over_vhist = True
+    visualize_input_vhist = True
     segment_real_hist = False
     skip_real_histology = False
     create_virtual_histology = True
+    is_input_always_oct = True
     start_from_n = 1
     take_first_n_images = args.take_first_n if args.take_first_n > 0 else -1
-    is_input_always_oct = True
     output_image_dir = args.output_dir
     if not os.path.exists(output_image_dir):
         os.makedirs(output_image_dir)
@@ -240,14 +240,11 @@ def main(args):
         # oct
         if is_oct:
             print("OCT segmentation")
-            oct_mask, _, crop_args, n_points_used, warped_mask_true, prompts , bounding_rectangle = predict(image_path, mask_true,
+            oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts , bounding_rectangle = predict(image_path, mask_true,
                                                                               args=args,
                                                                               weights_path=CHECKPOINT_PATH,
                                                                               create_vhist=False)
 
-            cropped_histology_gt = crop(warped_mask_true, **crop_args)
-            # save image to disk
-            cropped_oct_image = crop(roboflow_next_img, **crop_args)
             path = f'{os.path.join(output_image_dir, image_name)}_cropped_oct_image.png'
             # save image to disk
             cv2.imwrite(path, cropped_oct_image)
@@ -276,7 +273,7 @@ def main(args):
             print("histology segmentation")
 
             if segment_real_hist:
-                histology_mask, _, crop_args, n_points_used, warped_mask_true, prompts , bounding_rectangle = predict(image_path, mask_true,
+                histology_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts , bounding_rectangle = predict(image_path, mask_true,
                                                                                         args=args,
                                                                                         weights_path=CHECKPOINT_PATH,
                                                                                         create_vhist=False)
@@ -325,13 +322,13 @@ def main(args):
             # v. histology segmentation
             print("virtual histology segmentation")
             path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
-            cropped_vhist_mask, cropped_vhist, crop_args, n_points_used, warped_vhist_mask_true, prompts , bounding_rectangle = predict(image_path,
+            cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts , bounding_rectangle = predict(image_path,
                                                                                                           mask_true,
                                                                                                           args = args,
                                                                                                           weights_path=CHECKPOINT_PATH,
                                                                                                           create_vhist=create_virtual_histology,
                                                                                                           output_vhist_path=path)
-            cropped_vhist_mask_true = crop(warped_vhist_mask_true, **crop_args)
+            # cropped_vhist_mask_true = crop(warped_vhist_mask_true, **crop_args)
             if is_virtual_histology:
                 cropped_vhist = roboflow_next_img
             if visualize_input_vhist:
@@ -349,7 +346,7 @@ def main(args):
                 continue
             # cropped_vhist_mask[cropped_vhist_mask == 1] = True
             # cropped_vhist_mask[cropped_vhist_mask == 0] = False
-            cropped_oct_image = crop(roboflow_next_img, **crop_args)
+            # cropped_oct_image = crop(roboflow_next_img, **crop_args)
             epidermis_iou_vhist, dice, best_mask = single_or_multiple_predictions(mask_true, cropped_vhist_mask,
                                                                                   EPIDERMIS)
             if best_mask is None:
@@ -365,23 +362,25 @@ def main(args):
             total_samples_vhist += 1
 
             if visualize_pred_over_vhist:
-                plt.figure(figsize=(5, 5))
-                plt.imshow(cropped_vhist)
-                c1 = show_mask(best_mask, plt.gca())
-                c2 = show_mask(mask_true, plt.gca(), secondcolor=True, alpha=0.6)
-                plt.axis('off')
-                plt.suptitle(f"vhist segmentation: iou {epidermis_iou_vhist:.2f}")
-                plt.title(f"{image_name}")
-                # Add a legend
-                legend_elements = [
-                    Patch(color=c1, alpha=1, label='Yours'),
-                    Patch(color=c2, alpha=1, label='GT'),
-                ]
-                plt.legend(handles=legend_elements)
-                fpath = f'{os.path.join(output_image_dir, image_name)}_vhist_pred'
-                plt.savefig(f'{fpath}.png')
-                save_diff_image(best_mask, mask_true, fpath)
-                plt.close()
+                visualize_prediction(best_mask, mask_true, cropped_vhist, dice, image_name,
+                                     output_image_dir, save_diff_image, prompts)
+                # plt.figure(figsize=(5, 5))
+                # plt.imshow(cropped_vhist)
+                # c1 = show_mask(best_mask, plt.gca())
+                # c2 = show_mask(mask_true, plt.gca(), secondcolor=True, alpha=0.6)
+                # plt.axis('off')
+                # plt.suptitle(f"vhist segmentation: iou {epidermis_iou_vhist:.2f}")
+                # plt.title(f"{image_name}")
+                # # Add a legend
+                # legend_elements = [
+                #     Patch(color=c1, alpha=1, label='Yours'),
+                #     Patch(color=c2, alpha=1, label='GT'),
+                # ]
+                # plt.legend(handles=legend_elements)
+                # fpath = f'{os.path.join(output_image_dir, image_name)}_vhist_pred'
+                # plt.savefig(f'{fpath}.png')
+                # save_diff_image(best_mask, mask_true, fpath)
+                # plt.close()
 
             # if visualize_pred_vs_gt_vhist:
             #     plt.figure(figsize=(5, 5))
