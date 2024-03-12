@@ -299,6 +299,7 @@ class Segmenter():
         if self.gt_mask is not None:
             user_box = bounding_rectangle(self.gt_mask)
             com = get_center_of_mass(self.gt_mask)
+            #Note: all points returning from argwhere are in [y,x] (row,column) format.
             neg_points = np.argwhere(~self.gt_mask)
             #taking negative (background) points in the bounding box of the gt mask
             neg_points_in_gt_bbox = self.points_in_rectangle(neg_points, user_box)
@@ -308,12 +309,12 @@ class Segmenter():
             # pos_points_in_gt_bbox = self.points_in_rectangle(pos_points, user_box)
             # assert len(pos_points_in_gt_bbox) + len(neg_points_in_gt_bbox) == (user_box[2]-user_box[0] ) * (user_box[3]-user_box[1])
             add_pts = self.sample_points(pos_points)
-            if self.gt_mask[com[0], com[1]]:
+            if self.gt_mask[com[0], com[1]]: #if center of mass is in forground, overwrite the first point with it
                 add_pts[0] = [com[0], com[1]]
             self.add_pts = add_pts
             self.remove_pts = remove_pts
-            masks, _, _ = self.predictor.predict(point_coords=np.concatenate([remove_pts,add_pts]),
-                                                 point_labels=np.array([1] * len(remove_pts) + [0] * len(add_pts)),
+            masks, _, _ = self.predictor.predict(point_coords=np.concatenate([add_pts, remove_pts]),
+                                                 point_labels=np.array([1] * len(add_pts) + [0] * len(remove_pts)),
                                                  multimask_output=False)
             return masks
         else:
@@ -345,6 +346,8 @@ class Segmenter():
 
 
     def handle_multimask(self, masks):
+        #TODO instead of a for loop, calculate intersection ious and drop the non maximal one.
+        # like in calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id)
         for i, mask in enumerate(masks):
             mask = mask["segmentation"]
             mask = mask.astype(np.uint8)
@@ -362,17 +365,17 @@ class Segmenter():
 
     def get_mask(self):
         if self.box_prediction_flag and not self.auto_segmentation:
-            masks = self.get_mask_for_manual_rect()
-            if masks is not None:
-                self.handle_single_mask(masks)
+            mask = self.get_mask_for_manual_rect()
+            if mask is not None:
+                self.handle_single_mask(mask)
         if self.point_prediction_flag and not self.auto_segmentation:
             raise Exception("manual point_prediction_flag WIP")
         elif self.box_prediction_flag and self.auto_segmentation:
-            masks = self.get_mask_for_auto_rect()
-            self.handle_single_mask(masks)
+            mask = self.get_mask_for_auto_rect()
+            self.handle_single_mask(mask)
         elif self.point_prediction_flag and self.auto_segmentation:
-            masks = self.get_mask_for_auto_point()
-            self.handle_single_mask(masks)
+            mask = self.get_mask_for_auto_point()
+            self.handle_single_mask(mask)
         elif self.grid_prediction_flag and self.auto_segmentation:
             masks = self.predictor.generate(self.img)
             self.handle_multimask(masks)

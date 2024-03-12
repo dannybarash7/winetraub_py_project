@@ -24,22 +24,39 @@ def warp_image(source_image, source_points, target_points):
 
     return warped_image, affine_matrix
 
+
+def calculate_bottom_corners(height, top_left, top_right, middle_left, middle_right):
+    # Calculate the slopes of the left and right sides
+    left_slope = (top_left[0] - middle_left[0]) / (top_left[1] - middle_left[1])
+    right_slope = (top_right[0] - middle_right[0]) / (top_right[1] - middle_right[1])
+
+    # Calculate bottom left and bottom right points
+    bottom_left_y = height - 1
+    bottom_right_y = height - 1
+    bottom_left_x = np.round(middle_left[0] + (bottom_left_y - middle_left[1]) * left_slope).astype(int)
+    bottom_right_x =  np.round(middle_right[0] + (bottom_right_y - middle_right[1]) * right_slope).astype(int)
+
+
+    return (bottom_left_x, bottom_left_y), (bottom_right_x, bottom_right_y)
+
 def warp_oct(oct_image):
     margin = 10
     height,width,_ = oct_image.shape
     mid_row = int(height/2)
     first_row = oct_image[0, :, 0]
     non_zero_indices = np.nonzero(first_row)[0]
-    x = [non_zero_indices[0]+margin,0] #0 stands for first row
-    y = [non_zero_indices[-1]-margin,0]  #0 stands for first row
+    top_left = [non_zero_indices[0]+margin,0] #0 stands for first row
+    top_right = [non_zero_indices[-1]-margin,0]  #0 stands for first row
     last_row = oct_image[mid_row, :, 0]
     non_zero_indices = np.nonzero(last_row)[0]
-    z = [non_zero_indices[0]+margin,mid_row]
-    w = [non_zero_indices[-1]-margin,mid_row]
-    source_points = np.float32([x,y,z,w])
+    middle_left = [non_zero_indices[0]+margin,mid_row]
+    middle_right = [non_zero_indices[-1]-margin,mid_row]
+    # source_points = np.float32([top_left,top_right,middle_left,middle_right])
 
-    target_points = np.float32([[0, 0], [width,0], [0,mid_row-1], [width-1,mid_row-1]])
-    return warp_image(oct_image, source_points, target_points)
+    (bottom_left_x, bottom_left_y), (bottom_right_x, bottom_right_y) = calculate_bottom_corners(height, top_left, top_right, middle_left, middle_right)
+    crop_coords = top_left[1], bottom_left_y, max(top_left[0],bottom_left_x), min(top_right[0], bottom_right_x)
+    cropped_image = oct_image[crop_coords[0]: crop_coords[1], crop_coords[2]:crop_coords[3]]
+    return cropped_image,crop_coords
 
 
 def is_trapezoid_image(oct_image):
@@ -59,10 +76,11 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
     # is it sheered?
     right_column = oct_image.shape[1] - 1
     if is_trapezoid_image(oct_image) and mask_true is not None:
-        oct_image, affine_transform_matrix = warp_oct(oct_image)
-        #TODO: check the warped mask true path...
+        oct_image, crop_coords = warp_oct(oct_image)
+        # #TODO: check the warped mask true path...
         mask_true_uint8 = mask_true.astype(np.uint8) * 255
-        warped_mask_true = cv2.warpPerspective(mask_true_uint8, affine_transform_matrix, (mask_true.shape[1], mask_true.shape[0]))
+        warped_mask_true = mask_true_uint8[crop_coords[0]: crop_coords[1], crop_coords[2]:crop_coords[3]]
+        # warped_mask_true = cv2.warpPerspective(mask_true_uint8, affine_transform_matrix, (mask_true.shape[1], mask_true.shape[0]))
         warped_mask_true = (warped_mask_true > 0)
     else:
         warped_mask_true = mask_true
@@ -73,7 +91,7 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
     rescaled = gray_level_rescale(oct_image)
     masked_gel_image = mask_gel_and_low_signal(oct_image)
     y_center = get_y_center_of_tissue(masked_gel_image)
-    y_center = y_center * (2/3)
+    y_center = y_center * (2/3) #center of tissue should be around 2/3 height.
     # no need to crop - the current folder contains pre cropped images.
     cropped, crop_args = crop_oct(rescaled, y_center)
     cropped_histology_gt = crop(warped_mask_true, **crop_args)
