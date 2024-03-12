@@ -89,7 +89,7 @@ class Segmenter():
         self.npoints = npoints
         self.remaining_points = remaining_points
         self.init_points = npoints
-        self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
+        self.sam = sam_model_registry["vit_b"](checkpoint=weights_path)
         self.box_prediction_flag = box_prediction_flag
         self.point_prediction_flag = point_prediction_flag
         self.grid_prediction_flag = grid_prediction_flag

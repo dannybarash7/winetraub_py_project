@@ -42,7 +42,7 @@ rf_workspace= "yolab-kmmfx"
 rf_project_name = "paper_data"
 rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
 version = 2
-CHECKPOINT_PATH = "weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/medsam/MedSAM/work_dir/MedSAM/medsam_vit_b.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 
 roboflow_annot_dataset_dir = os.path.join(os.getcwd(),f"./paper_data-2/test")
 #TODO: change this:
