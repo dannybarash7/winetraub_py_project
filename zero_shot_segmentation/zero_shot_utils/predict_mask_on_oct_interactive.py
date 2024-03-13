@@ -105,7 +105,7 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
     y_center = get_y_center_of_tissue(masked_gel_image)
     y_center = y_center * (2/3) #center of tissue should be around 2/3 height.
     # no need to crop - the current folder contains pre cropped images.
-    cropped, crop_args = crop_oct_for_pix2pix(rescaled, y_center)
+    cropped_oct, crop_args = crop_oct_for_pix2pix(rescaled, y_center)
     cropped_histology_gt = crop(warped_mask_true, **crop_args)
 
     # Calculate the histogram
@@ -121,7 +121,7 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
     if create_vhist:
 
         # run vh&e
-        virtual_histology_image, _, o2h_input = oct2hist.run_network(cropped,
+        virtual_histology_image, _, o2h_input = oct2hist.run_network(cropped_oct,
                                                                      microns_per_pixel_x=microns_per_pixel_x,
                                                                      microns_per_pixel_z=microns_per_pixel_z)
 
@@ -147,10 +147,10 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
             segmentation = cv2.resize(segmentation, (0, 0), fx=4, fy=4)
 
     else:
-        segmentation, points_used, prompts = run_gui_segmentation(cropped, weights_path, gt_mask = cropped_histology_gt, args = args)
+        segmentation, points_used, prompts = run_gui_segmentation(cropped_oct, weights_path, gt_mask = cropped_histology_gt, args = args)
         virtual_histology_image_copy = None
-    bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
-    return segmentation, virtual_histology_image_copy, cropped_histology_gt, cropped, points_used, warped_mask_true, prompts, bounding_rectangle
+    # bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
+    return segmentation, virtual_histology_image_copy, cropped_histology_gt, cropped_oct, points_used, warped_mask_true, prompts
 
 
 def get_y_center_of_tissue(oct_image):

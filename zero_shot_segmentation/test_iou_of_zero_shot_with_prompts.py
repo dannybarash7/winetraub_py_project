@@ -189,8 +189,10 @@ def main(args):
     if take_first_n_images > 0:
         image_files = image_files[:take_first_n_images]
     for oct_fname in tqdm(image_files):
-        # if not extract_filename_prefix(image_file).startswith("LE-03-Slide04_Section01_yp0_A"):
+
+        # if not extract_filename_prefix(oct_fname).startswith("LHC-31-Slide03_Section03_yp0_A"):
         #     continue
+        # print("Skipping to LHC-31-Slide03_Section03_yp0_A... ")
         is_real_histology = oct_fname.find("_B_") != -1 or oct_fname.find("histology") != -1
         is_oct = oct_fname.find("oct") != -1 or is_input_always_oct
         # if is_real_histology and skip_real_histology:
@@ -240,7 +242,7 @@ def main(args):
         # oct
         if is_oct:
             print("OCT segmentation")
-            oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts , bounding_rectangle = predict(image_path, mask_true,
+            oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts  = predict(image_path, mask_true,
                                                                               args=args,
                                                                               weights_path=CHECKPOINT_PATH,
                                                                               create_vhist=False)
@@ -264,7 +266,7 @@ def main(args):
 
                 if visualize_pred_vs_gt_oct:
                     visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dice, image_name,
-                                         output_image_dir, save_diff_image, prompts)
+                                         output_image_dir, save_diff_image, prompts, ext = "oct_pred")
 
                 total_samples_oct += 1
 
@@ -273,7 +275,7 @@ def main(args):
             print("histology segmentation")
 
             if segment_real_hist:
-                histology_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts , bounding_rectangle = predict(image_path, mask_true,
+                histology_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts  = predict(image_path, mask_true,
                                                                                         args=args,
                                                                                         weights_path=CHECKPOINT_PATH,
                                                                                         create_vhist=False)
@@ -322,7 +324,7 @@ def main(args):
             # v. histology segmentation
             print("virtual histology segmentation")
             path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
-            cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts , bounding_rectangle = predict(image_path,
+            cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts  = predict(image_path,
                                                                                                           mask_true,
                                                                                                           args = args,
                                                                                                           weights_path=CHECKPOINT_PATH,
@@ -363,7 +365,7 @@ def main(args):
 
             if visualize_pred_over_vhist:
                 visualize_prediction(best_mask, mask_true, cropped_vhist, dice, image_name,
-                                     output_image_dir, save_diff_image, prompts)
+                                     output_image_dir, save_diff_image, prompts, ext = "vhist_pred")
                 # plt.figure(figsize=(5, 5))
                 # plt.imshow(cropped_vhist)
                 # c1 = show_mask(best_mask, plt.gca())
@@ -430,12 +432,17 @@ def main(args):
         print('Reject the null hypothesis: There is a significant difference between the two groups.')
     else:
         print('Fail to reject the null hypothesis: There is no significant difference between the two groups.')
-    str_to_save = f'T-statistic: {t_statistic}, P-value: {p_value}, alpha: {alpha}, p_value < alpha: {p_value < alpha}'
+
+    str_to_save = (f'Average IoU with virtual histology: {average_iou}\n'
+                   f'Average IoU without virtual histology: {average_iou_oct}'
+                   f'Average dice with virtual histology: {average_dice}\n'
+                   f'Average dice without virtual histology: {average_dice_oct}\n'
+                   f'T-statistic: {t_statistic}, P-value: {p_value}, alpha: {alpha}, p_value < alpha: {p_value < alpha}')
     file_path = os.path.join(output_image_dir, 'p_value.txt')
     with open(file_path, 'w+') as file:
         file.write(str_to_save)
 def visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dice, image_name, output_image_dir,
-                         save_diff_image, prompts):
+                         save_diff_image, prompts, ext):
     plt.figure(figsize=(5, 5))
     plt.imshow(cropped_oct_image, cmap="gray")
     c1 = show_mask(best_mask, plt.gca())
@@ -465,7 +472,7 @@ def visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dic
     #     Patch(color=c2, alpha=1, label='GT'),
     # ]
     # plt.legend(handles=legend_elements)
-    fpath = f'{os.path.join(output_image_dir, image_name)}_oct_pred'
+    fpath = f'{os.path.join(output_image_dir, image_name)}_{ext}'
     plt.savefig(f'{fpath}.png', bbox_inches='tight', pad_inches=0)
     save_diff_image(best_mask, cropped_histology_gt, fpath)
     plt.close()
