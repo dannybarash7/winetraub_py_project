@@ -1,7 +1,6 @@
 from matplotlib import pyplot as plt
 import cv2
 import matplotlib as mpl
-from segment_anything import sam_model_registry, SamPredictor, SamAutomaticMaskGenerator
 import torch
 import os
 from matplotlib.patches import Circle
@@ -12,11 +11,14 @@ import torch.nn.functional as F
 from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass
 import sys
 sys.path.append("./OCT2Hist_UseModel/")
-from SAM_Med2D.segment_anything import sam_model_registry as sammed_model_registry
-from SAM_Med2D.segment_anything.predictor_sammed import SammedPredictor
+
 MEDSAM = False
 SAMMED_2D = True
-
+if not SAMMED_2D:
+    from segment_anything import sam_model_registry, SamPredictor, SamAutomaticMaskGenerator
+else:
+    from SAM_Med2D.segment_anything import sam_model_registry as sammed_model_registry
+    from SAM_Med2D.segment_anything.predictor_sammed import SammedPredictor
 segmenter = None
 def run_gui(img, weights_path, args, gt_mask = None, auto_segmentation= True):
     global segmenter
@@ -151,14 +153,13 @@ class Segmenter():
                 # )
             # save for later
             Segmenter._predictor = self.predictor
+        else:
+            self.predictor = Segmenter._predictor
+
         if not grid_prediction_flag:
             print("Creating image embeddings ... ", end="")
             self.predictor.set_image(self.img)
             print("Done")
-        
-
-
-
 
         self.color_set = set()
         self.current_color = self.pick_color()
