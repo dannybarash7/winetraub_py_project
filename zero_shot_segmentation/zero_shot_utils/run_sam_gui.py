@@ -6,13 +6,16 @@ import torch
 import os
 from matplotlib.patches import Circle
 import numpy as np
+from skimage import io, transform
+import torch.nn.functional as F
 
 from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass
 import sys
 sys.path.append("./OCT2Hist_UseModel/")
 from SAM_Med2D.segment_anything import sam_model_registry as sammed_model_registry
 from SAM_Med2D.segment_anything.predictor_sammed import SammedPredictor
-
+MEDSAM = False
+SAMMED_2D = True
 
 segmenter = None
 def run_gui(img, weights_path, args, gt_mask = None, auto_segmentation= True):
@@ -87,18 +90,22 @@ class Segmenter():
         :param gt_mask:
         """
 
+        self.device = "cpu"
         self.img = img
         self.min_mask_region_area = 500
         self.npoints = npoints
         self.remaining_points = remaining_points
         self.init_points = npoints
-        from argparse import Namespace
-        args = Namespace()
-        args.image_size = 256
-        args.encoder_adapter = True
-        args.sam_checkpoint = "/Users/dannybarash/Code/oct/medsam/sam-med2d/OCT2Hist_UseModel/SAM_Med2D/pretrain_model/sam-med2d_b.pth"
-        device = "cpu"
-        #self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
+        if SAMMED_2D:
+            from argparse import Namespace
+            args = Namespace()
+            args.image_size = 256
+            args.encoder_adapter = True
+            args.sam_checkpoint = "/Users/dannybarash/Code/oct/medsam/sam-med2d/OCT2Hist_UseModel/SAM_Med2D/pretrain_model/sam-med2d_b.pth"
+            device = "cpu"
+            #self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
+        if MEDSAM:
+            self.sam = sam_model_registry["vit_b"](checkpoint=weights_path)
         self.box_prediction_flag = box_prediction_flag
         self.point_prediction_flag = point_prediction_flag
         self.grid_prediction_flag = grid_prediction_flag
@@ -107,17 +114,16 @@ class Segmenter():
         self.init_points = npoints
 
         if Segmenter._predictor is None:
-            model = sammed_model_registry["vit_b"](args).to(device)
-            predictor = SammedPredictor(model)
-            self.sam = model# sam_model_registry["vit_h"](checkpoint=weights_path)
+            if SAMMED_2D:
+                model = sammed_model_registry["vit_b"](args).to(device)
+                self.predictor = SammedPredictor(model)
+                self.sam = model# sam_model_registry["vit_h"](checkpoint=weights_path)
+            if MEDSAM:
+                self.predictor = SamPredictor(self.sam)
+                self.sam = sam_model_registry["vit_b"](checkpoint=weights_path)
             if torch.cuda.is_available():
                 self.sam.to(device="cuda")
-            if not grid_prediction_flag:
-                self.predictor = predictor
-                print("Creating image embeddings ... ", end="")
-                self.predictor.set_image(self.img)
-                print("Done")
-            else:
+            if grid_prediction_flag:            
                 self.predictor = SamAutomaticMaskGenerator(
                     self.sam,
                     pred_iou_thresh=0.0,  # relevant
@@ -145,8 +151,13 @@ class Segmenter():
                 # )
             # save for later
             Segmenter._predictor = self.predictor
-        else:
-            self.predictor = Segmenter._predictor
+        if not grid_prediction_flag:
+            print("Creating image embeddings ... ", end="")
+            self.predictor.set_image(self.img)
+            print("Done")
+        
+
+
 
 
         self.color_set = set()
@@ -273,12 +284,75 @@ class Segmenter():
             masks, _, _ = self.predictor.predict(box=user_box, multimask_output=False)
             return masks
 
+    def transform_img(self, img_np, box_np):
+        medsam_model = self.predictor.model
+        if len(img_np.shape) == 2:
+            img_3c = np.repeat(img_np[:, :, None], 3, axis=-1)
+        else:
+            img_3c = img_np
+        H, W, _ = img_3c.shape
+        # %% image preprocessing
+        img_1024 = transform.resize(
+            img_3c, (1024, 1024), order=3, preserve_range=True, anti_aliasing=True
+        ).astype(np.uint8)
+        img_1024 = (img_1024 - img_1024.min()) / np.clip(
+            img_1024.max() - img_1024.min(), a_min=1e-8, a_max=None
+        )  # normalize to [0, 1], (H, W, 3)
+        # convert the shape to (3, H, W)
+        img_1024_tensor = (
+            torch.tensor(img_1024).float().permute(2, 0, 1).unsqueeze(0).to(self.device)
+        )
+        with torch.no_grad():
+            image_embedding = medsam_model.image_encoder(img_1024_tensor)
+        box_np = np.array([box_np])
+        box_1024 = box_np / np.array([W, H, W, H]) * 1024
+        return image_embedding, box_1024
+
+    @torch.no_grad()
+    def medsam_inference(self, img, box):
+        H, W, _ = img.shape
+        img_embed , box_1024= self.transform_img(img, box)
+        medsam_model = self.predictor.model
+        box_torch = torch.as_tensor(box_1024, dtype=torch.float, device=img_embed.device)
+        if len(box_torch.shape) == 2:
+            box_torch = box_torch[:, None, :]  # (B, 1, 4)
+        print(box_torch)
+        sparse_embeddings, dense_embeddings = medsam_model.prompt_encoder(
+            points=None,
+            boxes=box_torch,
+            masks=None,
+        )
+        low_res_logits, _ = medsam_model.mask_decoder(
+            image_embeddings=img_embed,  # (B, 256, 64, 64)
+            image_pe=medsam_model.prompt_encoder.get_dense_pe(),  # (1, 256, 64, 64)
+            sparse_prompt_embeddings=sparse_embeddings,  # (B, 2, 256)
+            dense_prompt_embeddings=dense_embeddings,  # (B, 256, 64, 64)
+            multimask_output=False,
+        )
+
+        low_res_pred = torch.sigmoid(low_res_logits)  # (1, 1, 256, 256)
+
+        low_res_pred = F.interpolate(
+            low_res_pred,
+            size=(H, W),
+            mode="bilinear",
+            align_corners=False,
+        )  # (1, 1, gt.shape)
+        low_res_pred = low_res_pred.squeeze().cpu().numpy()  # (256, 256)
+        medsam_seg = (low_res_pred > 0.5).astype(np.uint8)
+        return medsam_seg
     def get_mask_for_auto_rect(self):
         self.user_box = bounding_rectangle(self.gt_mask)
         if self.gt_mask is None:
             print("Missing input to auto rect box prediction")
             return None
-        masks, _, _ = self.predictor.predict(box=self.user_box, multimask_output=False)
+        if MEDSAM:
+            masks = self.medsam_inference(self.img, self.user_box)
+            masks = np.expand_dims(masks, 0)
+        #     user_box_to_sam_med = self.user_box / np.array([1024,  512, 1024,  512]) * 1024
+        #     masks, _, _ = self.predictor.predict(box=self.user_box, multimask_output=False)
+        else:
+            masks, _, _ = self.predictor.predict(box=self.user_box, multimask_output=False)
         return masks
 
     def points_in_rectangle(self, points, user_box):
@@ -330,14 +404,14 @@ class Segmenter():
     def handle_single_mask(self, masks):
         mask = masks[0].astype(np.uint8)
         mask[self.global_masks > 0] = 0
-        mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
-        mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")
-        contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        xs, ys = [], []
-        for contour in contours:  # nan to disconnect contours
-            xs.extend(contour[:, 0, 0].tolist() + [np.nan])
-            ys.extend(contour[:, 0, 1].tolist() + [np.nan])
-        self.contour_plot.set_data(xs, ys)
+        # mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
+        # mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")
+        # contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        # xs, ys = [], []
+        # for contour in contours:  # nan to disconnect contours
+        #     xs.extend(contour[:, 0, 0].tolist() + [np.nan])
+        #     ys.extend(contour[:, 0, 1].tolist() + [np.nan])
+        # self.contour_plot.set_data(xs, ys)
         self.masks.append(mask)
         self.mask_data[:, :, 3] = mask * self.opacity
         self.mask_plot.set_data(self.mask_data)
@@ -454,6 +528,9 @@ class Segmenter():
                 fill_labels = [int(np.argmax(sizes)) + 1]
         mask = np.isin(regions, fill_labels)
         return mask
+
+
+
 
 def run_gui_segmentation(img, weights_path, gt_mask, args):
     segmenter = run_gui(img, weights_path, args, gt_mask)

@@ -38,7 +38,7 @@ def find_crop_coords(input_image, y_center): #left top corner
     target_height = 512
     return target_width, target_height, x0, z0
 
-def crop_oct(input_image, y_center):
+def crop_oct_for_pix2pix(input_image, y_center):
     target_width, target_height, x0, z0 = find_crop_coords(input_image, y_center)
     coords = {"target_width":target_width, "target_height":target_height,"x0":x0,"z0":z0}
     cropped_img = crop(input_image, **coords)

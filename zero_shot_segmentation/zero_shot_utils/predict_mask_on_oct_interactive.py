@@ -4,7 +4,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-from OCT2Hist_UseModel.utils.crop import crop_oct, crop
+from OCT2Hist_UseModel.utils.crop import crop_oct_for_pix2pix, crop
 from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale
 from OCT2Hist_UseModel.utils.masking import get_sam_input_points, show_points, show_mask, mask_gel_and_low_signal
 from OCT2Hist_UseModel import oct2hist
@@ -39,23 +39,34 @@ def calculate_bottom_corners(height, top_left, top_right, middle_left, middle_ri
 
     return (bottom_left_x, bottom_left_y), (bottom_right_x, bottom_right_y)
 
-def warp_oct(oct_image):
-    margin = 10
+
+
+
+def crop_oct_from_trapezoid(oct_image):
+
     height,width,_ = oct_image.shape
     mid_row = int(height/2)
     first_row = oct_image[0, :, 0]
     non_zero_indices = np.nonzero(first_row)[0]
-    top_left = [non_zero_indices[0]+margin,0] #0 stands for first row
-    top_right = [non_zero_indices[-1]-margin,0]  #0 stands for first row
+    top_left = [non_zero_indices[0],0] #0 stands for first row
+    top_right = [non_zero_indices[-1],0]  #0 stands for first row
     last_row = oct_image[mid_row, :, 0]
     non_zero_indices = np.nonzero(last_row)[0]
-    middle_left = [non_zero_indices[0]+margin,mid_row]
-    middle_right = [non_zero_indices[-1]-margin,mid_row]
+    middle_left = [non_zero_indices[0],mid_row]
+    middle_right = [non_zero_indices[-1],mid_row]
     # source_points = np.float32([top_left,top_right,middle_left,middle_right])
 
     (bottom_left_x, bottom_left_y), (bottom_right_x, bottom_right_y) = calculate_bottom_corners(height, top_left, top_right, middle_left, middle_right)
-    crop_coords = top_left[1], bottom_left_y, max(top_left[0],bottom_left_x), min(top_right[0], bottom_right_x)
+    left_border_x =max(top_left[0],bottom_left_x)
+    right_border_x = min(top_right[0], bottom_right_x)
+    #pad right_border to width 1024
+    right_border_x = max(right_border_x,  left_border_x + 1024)
+    # pad bottom to height 512
+    bottom_border_y = max(bottom_left_y, top_left[1]+512)
+    top_border_y = top_left[1]
+    crop_coords = top_border_y, bottom_border_y, left_border_x, right_border_x
     cropped_image = oct_image[crop_coords[0]: crop_coords[1], crop_coords[2]:crop_coords[3]]
+    # cropped_image = utils.pad(cropped_image)
     return cropped_image,crop_coords
 
 
@@ -74,16 +85,17 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
     # is it sheered?
-    right_column = oct_image.shape[1] - 1
-    if is_trapezoid_image(oct_image) and mask_true is not None:
-        oct_image, crop_coords = warp_oct(oct_image)
-        # #TODO: check the warped mask true path...
-        mask_true_uint8 = mask_true.astype(np.uint8) * 255
-        warped_mask_true = mask_true_uint8[crop_coords[0]: crop_coords[1], crop_coords[2]:crop_coords[3]]
-        # warped_mask_true = cv2.warpPerspective(mask_true_uint8, affine_transform_matrix, (mask_true.shape[1], mask_true.shape[0]))
-        warped_mask_true = (warped_mask_true > 0)
-    else:
-        warped_mask_true = mask_true
+    # right_column = oct_image.shape[1] - 1
+    # if is_trapezoid_image(oct_image) and mask_true is not None:
+    #     oct_image, crop_coords = crop_oct_from_trapezoid(oct_image)
+    #     # #TODO: check the warped mask true path...
+    #     mask_true_uint8 = mask_true.astype(np.uint8) * 255
+    #     warped_mask_true = mask_true_uint8[crop_coords[0]: crop_coords[1], crop_coords[2]:crop_coords[3]]
+    #     # warped_mask_true = utils.pad(warped_mask_true)
+    #     # warped_mask_true = cv2.warpPerspective(mask_true_uint8, affine_transform_matrix, (mask_true.shape[1], mask_true.shape[0]))
+    #     warped_mask_true = (warped_mask_true > 0)
+    # else:
+    warped_mask_true = mask_true
     # OCT image's pixel size
     microns_per_pixel_z = 1
     microns_per_pixel_x = 1
@@ -93,7 +105,7 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
     y_center = get_y_center_of_tissue(masked_gel_image)
     y_center = y_center * (2/3) #center of tissue should be around 2/3 height.
     # no need to crop - the current folder contains pre cropped images.
-    cropped, crop_args = crop_oct(rescaled, y_center)
+    cropped_oct, crop_args = crop_oct_for_pix2pix(rescaled, y_center)
     cropped_histology_gt = crop(warped_mask_true, **crop_args)
 
     # Calculate the histogram
@@ -109,7 +121,7 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
     if create_vhist:
 
         # run vh&e
-        virtual_histology_image, _, o2h_input = oct2hist.run_network(cropped,
+        virtual_histology_image, _, o2h_input = oct2hist.run_network(cropped_oct,
                                                                      microns_per_pixel_x=microns_per_pixel_x,
                                                                      microns_per_pixel_z=microns_per_pixel_z)
 
@@ -135,10 +147,10 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
             segmentation = cv2.resize(segmentation, (0, 0), fx=4, fy=4)
 
     else:
-        segmentation, points_used, prompts = run_gui_segmentation(cropped, weights_path, gt_mask = cropped_histology_gt, args = args)
+        segmentation, points_used, prompts = run_gui_segmentation(cropped_oct, weights_path, gt_mask = cropped_histology_gt, args = args)
         virtual_histology_image_copy = None
-    bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
-    return segmentation, virtual_histology_image_copy, crop_args, points_used, warped_mask_true, prompts, bounding_rectangle
+    # bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
+    return segmentation, virtual_histology_image_copy, cropped_histology_gt, cropped_oct, points_used, warped_mask_true, prompts
 
 
 def get_y_center_of_tissue(oct_image):
