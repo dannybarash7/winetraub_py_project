@@ -85,17 +85,17 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
     # is it sheered?
-    right_column = oct_image.shape[1] - 1
-    if is_trapezoid_image(oct_image) and mask_true is not None:
-        oct_image, crop_coords = crop_oct_from_trapezoid(oct_image)
-        # #TODO: check the warped mask true path...
-        mask_true_uint8 = mask_true.astype(np.uint8) * 255
-        warped_mask_true = mask_true_uint8[crop_coords[0]: crop_coords[1], crop_coords[2]:crop_coords[3]]
-        # warped_mask_true = utils.pad(warped_mask_true)
-        # warped_mask_true = cv2.warpPerspective(mask_true_uint8, affine_transform_matrix, (mask_true.shape[1], mask_true.shape[0]))
-        warped_mask_true = (warped_mask_true > 0)
-    else:
-        warped_mask_true = mask_true
+    # right_column = oct_image.shape[1] - 1
+    # if is_trapezoid_image(oct_image) and mask_true is not None:
+    #     oct_image, crop_coords = crop_oct_from_trapezoid(oct_image)
+    #     # #TODO: check the warped mask true path...
+    #     mask_true_uint8 = mask_true.astype(np.uint8) * 255
+    #     warped_mask_true = mask_true_uint8[crop_coords[0]: crop_coords[1], crop_coords[2]:crop_coords[3]]
+    #     # warped_mask_true = utils.pad(warped_mask_true)
+    #     # warped_mask_true = cv2.warpPerspective(mask_true_uint8, affine_transform_matrix, (mask_true.shape[1], mask_true.shape[0]))
+    #     warped_mask_true = (warped_mask_true > 0)
+    # else:
+    warped_mask_true = mask_true
     # OCT image's pixel size
     microns_per_pixel_z = 1
     microns_per_pixel_x = 1
