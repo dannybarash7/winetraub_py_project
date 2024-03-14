@@ -5,18 +5,17 @@ import torch
 import os
 from matplotlib.patches import Circle
 import numpy as np
-from skimage import io, transform
+from skimage import transform
 import torch.nn.functional as F
 
+from zero_shot_segmentation.test_iou_of_zero_shot_with_prompts import MEDSAM, SAMMED_2D, SAM
 from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass
 import sys
 sys.path.append("./OCT2Hist_UseModel/")
 
-MEDSAM = False
-SAMMED_2D = True
-if not SAMMED_2D:
+if SAM or MEDSAM:
     from segment_anything import sam_model_registry, SamPredictor, SamAutomaticMaskGenerator
-else:
+if SAMMED_2D:
     from SAM_Med2D.segment_anything import sam_model_registry as sammed_model_registry
     from SAM_Med2D.segment_anything.predictor_sammed import SammedPredictor
 segmenter = None
@@ -98,16 +97,6 @@ class Segmenter():
         self.npoints = npoints
         self.remaining_points = remaining_points
         self.init_points = npoints
-        if SAMMED_2D:
-            from argparse import Namespace
-            args = Namespace()
-            args.image_size = 256
-            args.encoder_adapter = True
-            args.sam_checkpoint = "/Users/dannybarash/Code/oct/medsam/sam-med2d/OCT2Hist_UseModel/SAM_Med2D/pretrain_model/sam-med2d_b.pth"
-            device = "cpu"
-            #self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
-        if MEDSAM:
-            self.sam = sam_model_registry["vit_b"](checkpoint=weights_path)
         self.box_prediction_flag = box_prediction_flag
         self.point_prediction_flag = point_prediction_flag
         self.grid_prediction_flag = grid_prediction_flag
@@ -115,17 +104,27 @@ class Segmenter():
         self.gt_mask = gt_mask
         self.init_points = npoints
 
-        if Segmenter._predictor is None:
+        if Segmenter._predictor is None: #init predictor
             if SAMMED_2D:
+                from argparse import Namespace
+                args = Namespace()
+                args.image_size = 256
+                args.encoder_adapter = True
+                args.sam_checkpoint = "/Users/dannybarash/Code/oct/medsam/sam-med2d/OCT2Hist_UseModel/SAM_Med2D/pretrain_model/sam-med2d_b.pth"
+                device = "cpu"
                 model = sammed_model_registry["vit_b"](args).to(device)
-                self.predictor = SammedPredictor(model)
                 self.sam = model# sam_model_registry["vit_h"](checkpoint=weights_path)
             if MEDSAM:
-                self.predictor = SamPredictor(self.sam)
                 self.sam = sam_model_registry["vit_b"](checkpoint=weights_path)
-            if torch.cuda.is_available():
-                self.sam.to(device="cuda")
-            if grid_prediction_flag:            
+            if SAM:
+                self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
+            if not grid_prediction_flag:
+                if MEDSAM or SAM:
+                    self.predictor = SamPredictor(self.sam)
+                if SAMMED_2D:
+                    self.predictor = SammedPredictor(model)
+                self.predictor.set_image(self.img)
+            else:
                 self.predictor = SamAutomaticMaskGenerator(
                     self.sam,
                     pred_iou_thresh=0.0,  # relevant
@@ -153,7 +152,7 @@ class Segmenter():
                 # )
             # save for later
             Segmenter._predictor = self.predictor
-        else:
+        else: #predictor saved from previous calls
             self.predictor = Segmenter._predictor
 
         if not grid_prediction_flag:
