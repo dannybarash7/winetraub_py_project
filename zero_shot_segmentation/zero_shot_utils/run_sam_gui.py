@@ -8,7 +8,7 @@ import numpy as np
 from skimage import transform
 import torch.nn.functional as F
 
-from zero_shot_segmentation.test_iou_of_zero_shot_with_prompts import MEDSAM, SAMMED_2D, SAM
+from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM
 from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass
 import sys
 sys.path.append("./OCT2Hist_UseModel/")

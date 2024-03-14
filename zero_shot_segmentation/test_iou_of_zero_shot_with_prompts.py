@@ -20,6 +20,9 @@ import pandas
 import pandas as pd
 import torch
 from matplotlib.patches import Patch
+
+from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM
+
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
 import segment_anything
 from tqdm import tqdm
@@ -42,9 +45,6 @@ rf_project_name = "paper_data"
 rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
 version = 2
 
-MEDSAM = False
-SAMMED_2D = False
-SAM = True
 if MEDSAM:
     CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/medsam/MedSAM/work_dir/MedSAM/medsam_vit_b.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 if SAM:
@@ -197,8 +197,10 @@ def main(args):
     if take_first_n_images > 0:
         image_files = image_files[:take_first_n_images]
     for oct_fname in tqdm(image_files):
-        # if not extract_filename_prefix(image_file).startswith("LE-03-Slide04_Section01_yp0_A"):
+
+        # if not extract_filename_prefix(oct_fname).startswith("LHC-31-Slide03_Section03_yp0_A"):
         #     continue
+        # print("Skipping to LHC-31-Slide03_Section03_yp0_A... ")
         is_real_histology = oct_fname.find("_B_") != -1 or oct_fname.find("histology") != -1
         is_oct = oct_fname.find("oct") != -1 or is_input_always_oct
         # if is_real_histology and skip_real_histology:
@@ -371,7 +373,7 @@ def main(args):
 
             if visualize_pred_over_vhist:
                 visualize_prediction(best_mask, mask_true, cropped_vhist, dice, image_name,
-                                     output_image_dir, save_diff_image, prompts)
+                                     output_image_dir, save_diff_image, prompts, ext = "vhist_pred")
                 # plt.figure(figsize=(5, 5))
                 # plt.imshow(cropped_vhist)
                 # c1 = show_mask(best_mask, plt.gca())
@@ -428,7 +430,7 @@ def main(args):
     array1 = df["dice_oct"].values
     array2 = df["dice_vhist"].values
     # Perform a two-sample t-test
-    t_statistic, p_value = ttest_ind(array1, array2, nan_policy="omit")
+    t_statistic, p_value = ttest_ind(array1, array2, nan_policy="omit", equal_var=False,)
     # Print the results
     print(f'T-statistic: {t_statistic}')
     print(f'P-value: {p_value}')
@@ -438,12 +440,17 @@ def main(args):
         print('Reject the null hypothesis: There is a significant difference between the two groups.')
     else:
         print('Fail to reject the null hypothesis: There is no significant difference between the two groups.')
-    str_to_save = f'T-statistic: {t_statistic}, P-value: {p_value}, alpha: {alpha}, p_value < alpha: {p_value < alpha}'
+
+    str_to_save = (f'Average IoU with virtual histology: {average_iou}\n'
+                   f'Average IoU without virtual histology: {average_iou_oct}'
+                   f'Average dice with virtual histology: {average_dice}\n'
+                   f'Average dice without virtual histology: {average_dice_oct}\n'
+                   f'T-statistic: {t_statistic}, P-value: {p_value}, alpha: {alpha}, p_value < alpha: {p_value < alpha}')
     file_path = os.path.join(output_image_dir, 'p_value.txt')
     with open(file_path, 'w+') as file:
         file.write(str_to_save)
 def visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dice, image_name, output_image_dir,
-                         save_diff_image, prompts):
+                         save_diff_image, prompts, ext):
     plt.figure(figsize=(5, 5))
     plt.imshow(cropped_oct_image, cmap="gray")
     c1 = show_mask(best_mask, plt.gca())
@@ -473,7 +480,7 @@ def visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dic
     #     Patch(color=c2, alpha=1, label='GT'),
     # ]
     # plt.legend(handles=legend_elements)
-    fpath = f'{os.path.join(output_image_dir, image_name)}_oct_pred'
+    fpath = f'{os.path.join(output_image_dir, image_name)}_{ext}'
     plt.savefig(f'{fpath}.png', bbox_inches='tight', pad_inches=0)
     save_diff_image(best_mask, cropped_histology_gt, fpath)
     plt.close()
