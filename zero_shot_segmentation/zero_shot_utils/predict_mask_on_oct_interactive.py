@@ -126,7 +126,7 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
                                                                      microns_per_pixel_z=microns_per_pixel_z)
 
         #take the R channel
-        virtual_histology_image = cv2.cvtColor(virtual_histology_image,cv2.COLOR_BGR2RGB)
+        # virtual_histology_image = cv2.cvtColor(virtual_histology_image,cv2.COLOR_BGR2RGB)
 
         if output_vhist_path:
             cv2.imwrite(output_vhist_path, virtual_histology_image)
