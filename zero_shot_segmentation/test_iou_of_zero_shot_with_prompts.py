@@ -257,7 +257,7 @@ def main(args):
         a=1
         bbox = bounding_rectangle(mask_true)
         bbox_area = bbox[2] * bbox[3]
-        ntrue = np.unique(mask_true, return_counts=True)[1][1]
+        ntrue = numpy.unique(mask_true, return_counts=True)[1][1]
         target_size_rel = ntrue/bbox_area
         # oct
         if is_oct:
