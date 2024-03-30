@@ -82,7 +82,7 @@ def run_network (im, model_name, netG_flag="--netG resnet_9blocks"):
     # Load output image
     im_output_path = f"{base_folder}/results/{model_name}/test_latest/images/im1_fake_B.png"
     im_output = cv2.imread(im_output_path)
-    im_output = cv2.cvtColor(im_output, cv2.COLOR_BGR2RGB)
+    # im_output = cv2.cvtColor(im_output, cv2.COLOR_BGR2RGB)
 
     return(im_output)
     

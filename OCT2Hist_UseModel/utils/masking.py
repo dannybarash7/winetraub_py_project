@@ -307,7 +307,34 @@ def get_sam_input_points(no_gel_filt_img, virtual_histology_image = None):
 
 
 # visualize
-def show_mask(mask, ax, secondcolor=False, alpha = 0.6, outline = False):
+def apply_gaussian_filter(mask):
+  # Convert boolean image to grayscale
+  # grayscale_image = mask * 255
+  numerical_image = mask.astype(np.uint8)
+  # Apply Gaussian filter
+  gaussian_filtered = cv2.GaussianBlur(numerical_image.astype(np.float32), (25, 25), 0)
+
+  # Threshold the result to get a binary image
+  threshold_value = 0.5  # Adjust this threshold value if needed
+  binary_result = (gaussian_filtered > threshold_value).astype(bool)
+  return binary_result
+
+def apply_closing_operation(mask):
+  # Convert boolean array to numerical (0 and 255)
+  numerical_image = mask.astype(np.uint8) * 255
+
+  # Define a structuring element for morphological operation
+  kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25, 25))
+
+  # Perform morphological closing
+  closing_result = cv2.morphologyEx(numerical_image, cv2.MORPH_CLOSE, kernel)
+
+  # Convert back to boolean array
+  binary_result = closing_result.astype(bool)
+  return binary_result
+
+
+def show_mask(mask, ax, secondcolor=False, alpha = 0.6, outline = False, nice = False):
 
     if outline:
       alpha = 1.0
@@ -323,6 +350,8 @@ def show_mask(mask, ax, secondcolor=False, alpha = 0.6, outline = False):
         color = np.array([8 / 255, 255 / 255, 128 / 255, alpha])
     else:
         color = np.array([0 / 255, 128 / 255, 255 / 255, alpha])
+    if nice:
+      mask = apply_closing_operation(mask)
     h, w = mask.shape[-2:]
     mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
     ax.imshow(mask_image)

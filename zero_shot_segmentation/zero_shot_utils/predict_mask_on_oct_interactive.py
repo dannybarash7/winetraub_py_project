@@ -126,12 +126,12 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
                                                                      microns_per_pixel_z=microns_per_pixel_z)
 
         #take the R channel
-        virtual_histology_image = cv2.cvtColor(virtual_histology_image,cv2.COLOR_BGR2RGB)
+        # virtual_histology_image = cv2.cvtColor(virtual_histology_image,cv2.COLOR_BGR2RGB)
 
         if output_vhist_path:
             cv2.imwrite(output_vhist_path, virtual_histology_image)
         # virtual_histology_image = virtual_histology_image[:,:,0]
-        virtual_histology_image_copy = virtual_histology_image.copy()
+        # virtual_histology_image_copy = virtual_histology_image.copy()
         if downsample:
             blurred_image = cv2.GaussianBlur(virtual_histology_image, (0, 0), 4)
             downsampled_image = cv2.resize(blurred_image, (0, 0), fx=0.25, fy=0.25)
@@ -148,9 +148,9 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
 
     else:
         segmentation, points_used, prompts = run_gui_segmentation(cropped_oct, weights_path, gt_mask = cropped_histology_gt, args = args)
-        virtual_histology_image_copy = None
+        virtual_histology_image = None
     # bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
-    return segmentation, virtual_histology_image_copy, cropped_histology_gt, cropped_oct, points_used, warped_mask_true, prompts
+    return segmentation, virtual_histology_image, cropped_histology_gt, cropped_oct, points_used, warped_mask_true, prompts
 
 
 def get_y_center_of_tissue(oct_image):

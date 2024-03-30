@@ -24,8 +24,10 @@ def run_gui(img, weights_path, args, gt_mask = None, auto_segmentation= True):
     if img is None:
         raise Exception("Image file not found.")
 
-    if img.ndim == 3:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    # if img.ndim == 3:
+    #     # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    #     a=1
+
     elif img.ndim == 2:
         img = np.repeat(img[:, :, np.newaxis], 3, axis=2)
 
@@ -168,7 +170,9 @@ class Segmenter():
                                                   10 * (self.img.shape[0] / max(self.img.shape))))
         self.fig.suptitle(f'Segment Anything GUI: {self.remaining_points} points remain', fontsize=16)
         self.ax.set_title("Press 'h' to show/hide commands.", fontsize=10)
+        self.img = cv2.cvtColor(self.img, cv2.COLOR_BGR2RGB)
         self.im = self.ax.imshow(self.img, cmap=mpl.cm.gray)
+        self.img = cv2.cvtColor(self.img, cv2.COLOR_BGR2RGB)
         self.ax.autoscale(False)
         self.label = 1
         self.add_plot, = self.ax.plot([], [], 'o', markerfacecolor='green', markeredgecolor='black', markersize=5)
@@ -352,7 +356,10 @@ class Segmenter():
         #     user_box_to_sam_med = self.user_box / np.array([1024,  512, 1024,  512]) * 1024
         #     masks, _, _ = self.predictor.predict(box=self.user_box, multimask_output=False)
         else:
-            masks, _, _ = self.predictor.predict(box=self.user_box, multimask_output=False)
+            masks, qualities, low_res_mask_inputs = self.predictor.predict(box=self.user_box, multimask_output=True)
+            i = qualities.argmax()
+            masks = masks[i:i+1,:,:]
+
         return masks
 
     def points_in_rectangle(self, points, user_box):
@@ -402,16 +409,16 @@ class Segmenter():
         return points_xy_in_mask
 
     def handle_single_mask(self, masks):
-        mask = masks[0].astype(np.uint8)
+        mask = masks[0,:,:].astype(np.uint8)
         mask[self.global_masks > 0] = 0
-        # mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
-        # mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")
-        # contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        # xs, ys = [], []
-        # for contour in contours:  # nan to disconnect contours
-        #     xs.extend(contour[:, 0, 0].tolist() + [np.nan])
-        #     ys.extend(contour[:, 0, 1].tolist() + [np.nan])
-        # self.contour_plot.set_data(xs, ys)
+        mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
+        mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")
+        contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        xs, ys = [], []
+        for contour in contours:  # nan to disconnect contours
+            xs.extend(contour[:, 0, 0].tolist() + [np.nan])
+            ys.extend(contour[:, 0, 1].tolist() + [np.nan])
+        self.contour_plot.set_data(xs, ys)
         self.masks.append(mask)
         self.mask_data[:, :, 3] = mask * self.opacity
         self.mask_plot.set_data(self.mask_data)
