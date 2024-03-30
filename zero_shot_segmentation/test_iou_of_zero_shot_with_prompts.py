@@ -137,6 +137,11 @@ def extract_filename_prefix(filename):
 
     return prefix
 
+def bounding_rectangle(array):
+    rows, cols = np.any(array, axis=1), np.any(array, axis=0)
+    y1, y2 = np.where(rows)[0][[0, -1]]
+    x1, x2 = np.where(cols)[0][[0, -1]]
+    return np.array([x1,y1,x2,y2])
 
 def main(args):
     global df, roboflow_next_img
@@ -247,6 +252,13 @@ def main(args):
         #     plt.savefig(f'{os.path.join(output_image_dir, image_name)}_input_hist.png')
         #     plt.close('all')
 
+        # get bbox
+        # divide mask_true by bbox area
+        a=1
+        bbox = bounding_rectangle(mask_true)
+        bbox_area = bbox[2] * bbox[3]
+        ntrue = np.unique(mask_true, return_counts=True)[1][1]
+        target_size_rel = ntrue/bbox_area
         # oct
         if is_oct:
             print("OCT segmentation")
@@ -360,6 +372,7 @@ def main(args):
                 plt.savefig(f'{os.path.join(output_image_dir, image_name)}_input_vhist.png')
                 plt.close()
 
+
             if len(cropped_vhist_mask) == 0:
                 print(f"Could not segment {image_path}.")
                 continue
@@ -375,6 +388,7 @@ def main(args):
             print(f"v. histology dice: {dice}.")
             df.loc[image_name, "iou_vhist"] = epidermis_iou_vhist
             df.loc[image_name, "dice_vhist"] = dice
+            df.loc[image_name, "target_size_rel"] = target_size_rel
             df.loc[image_name, "nclicks_vhist"] = n_points_used
             total_iou_vhist[EPIDERMIS] += epidermis_iou_vhist
             total_dice_vhist[EPIDERMIS] += dice
@@ -385,6 +399,8 @@ def main(args):
                                      output_image_dir, save_diff_image, prompts, ext = "vhist_pred")
                 visualize_prediction(best_mask, mask_true, cropped_vhist, dice, image_name,
                                      output_image_dir, save_diff_image, prompts, ext="nice_vhist_pred", nice=True)
+                visualize_prediction(best_mask, mask_true, cropped_oct_image, dice, image_name,
+                                     output_image_dir, save_diff_image, prompts, ext="vhist_pred_over_oct")
                 # plt.figure(figsize=(5, 5))
                 # plt.imshow(cropped_vhist)
                 # c1 = show_mask(best_mask, plt.gca())
