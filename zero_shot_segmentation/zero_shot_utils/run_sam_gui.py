@@ -356,9 +356,9 @@ class Segmenter():
         #     user_box_to_sam_med = self.user_box / np.array([1024,  512, 1024,  512]) * 1024
         #     masks, _, _ = self.predictor.predict(box=self.user_box, multimask_output=False)
         else:
-            masks, qualities, low_res_mask_inputs = self.predictor.predict(box=self.user_box, multimask_output=True)
-            i = qualities.argmax()
-            masks = masks[i:i+1,:,:]
+            masks, qualities, low_res_mask_inputs = self.predictor.predict(box=self.user_box, multimask_output=False)
+            # i = qualities.argmax()
+            # masks = masks[i:i+1,:,:]
 
         return masks
 
