@@ -482,8 +482,8 @@ def visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dic
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
     plt.imshow(cropped_oct_image)
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
-    c1 = show_mask(best_mask, plt.gca(), nice = nice)
-    c2 = show_mask(cropped_histology_gt, plt.gca(), secondcolor=True, outline=True, nice = False)
+    c1 = show_mask(best_mask, plt.gca())
+    c2 = show_mask(cropped_histology_gt, plt.gca(), secondcolor=True, outline=True)
     # c2 = show_mask(cropped_histology_gt, plt.gca(), random_color=True, alpha=0.2)
     plt.axis('off')
     # plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}")
@@ -517,14 +517,14 @@ def visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dic
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process point, box, and grid arguments.")
-    group = parser.add_mutually_exclusive_group()
     parser.add_argument("--output_dir", help="Specify output directory, e.g. './images/point_prediction' ")
     parser.add_argument("--take_first_n", help="take first n images", default=-1, type=int)
     parser.add_argument("--npoints", help="number_of_prediction_points", default=10, type=int)
+    parser.add_argument("--nice", default = True, help="Specify a grid.", type=bool)
+    group = parser.add_mutually_exclusive_group()
     group.add_argument("--point", action="store_true", help="Specify a point.")
     group.add_argument("--box", action="store_true", help="Specify a box.")
     group.add_argument("--grid", action="store_true", help="Specify a grid.")
-
     args = parser.parse_args()
     # if args.point:
     #     process_point()

@@ -8,6 +8,7 @@ import numpy as np
 from skimage import transform
 import torch.nn.functional as F
 
+from OCT2Hist_UseModel.utils.masking import apply_closing_operation
 from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM
 from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass
 import sys
@@ -34,7 +35,7 @@ def run_gui(img, weights_path, args, gt_mask = None, auto_segmentation= True):
     if args.point:
         segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask, point_prediction_flag=True, npoints = args.npoints)
     elif args.box:
-        segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask, box_prediction_flag=True)
+        segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask, box_prediction_flag=True, nice = args.nice)
     elif args.grid:
         segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask=gt_mask,
                               grid_prediction_flag=True)
@@ -81,7 +82,7 @@ def get_point_grid():
 class Segmenter():
     _predictor = None
 
-    def __init__(self, img, weights_path,  auto_segmentation, npoints = 0, box_prediction_flag=False, point_prediction_flag = False, grid_prediction_flag = False, gt_mask = None, remaining_points = 20):
+    def __init__(self, img, weights_path,  auto_segmentation, npoints = 0, box_prediction_flag=False, point_prediction_flag = False, grid_prediction_flag = False, gt_mask = None, remaining_points = 20, nice = True):
         """
 
         :param img:
@@ -95,7 +96,7 @@ class Segmenter():
 
         self.device = "cpu"
         self.img = img
-        self.min_mask_region_area = 500
+        self.min_mask_region_area = 100
         self.npoints = npoints
         self.remaining_points = remaining_points
         self.init_points = npoints
@@ -105,6 +106,7 @@ class Segmenter():
         self.auto_segmentation = auto_segmentation
         self.gt_mask = gt_mask
         self.init_points = npoints
+        self.nice = nice
 
         if Segmenter._predictor is None: #init predictor
             if SAMMED_2D:
@@ -413,12 +415,14 @@ class Segmenter():
         mask[self.global_masks > 0] = 0
         mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
         mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")
+        if self.nice:
+            mask = apply_closing_operation(mask)
         contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        xs, ys = [], []
-        for contour in contours:  # nan to disconnect contours
-            xs.extend(contour[:, 0, 0].tolist() + [np.nan])
-            ys.extend(contour[:, 0, 1].tolist() + [np.nan])
-        self.contour_plot.set_data(xs, ys)
+        # xs, ys = [], []
+        # for contour in contours:  # nan to disconnect contours
+        #     xs.extend(contour[:, 0, 0].tolist() + [np.nan])
+        #     ys.extend(contour[:, 0, 1].tolist() + [np.nan])
+        # self.contour_plot.set_data(xs, ys)
         self.masks.append(mask)
         self.mask_data[:, :, 3] = mask * self.opacity
         self.mask_plot.set_data(self.mask_data)
@@ -435,14 +439,16 @@ class Segmenter():
             mask[self.global_masks > 0] = 0
             mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
             mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")
-            contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-            xs, ys = [], []
-            for contour in contours:  # nan to disconnect contours
-                xs.extend(contour[:, 0, 0].tolist() + [np.nan])
-                ys.extend(contour[:, 0, 1].tolist() + [np.nan])
-            self.contour_plot.set_data(xs, ys)
-            self.masks.append(mask)
-            self.mask_data[:, :, 3] = mask * self.opacity
+            if self.nice:
+                mask = apply_closing_operation(mask)
+                contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            # xs, ys = [], []
+            # for contour in contours:  # nan to disconnect contours
+            #     xs.extend(contour[:, 0, 0].tolist() + [np.nan])
+            #     ys.extend(contour[:, 0, 1].tolist() + [np.nan])
+            # self.contour_plot.set_data(xs, ys)
+                self.masks.append(mask)
+                self.mask_data[:, :, 3] = mask * self.opacity
 
     def get_mask(self):
         if self.box_prediction_flag and not self.auto_segmentation:
