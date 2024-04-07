@@ -86,7 +86,7 @@ class Segmenter():
 
         :param img:
         :param weights_path:
-        :param npoints:
+        :param npoints: number of points to sample from mask fg, same number will be used for fg.
         :param box_prediction_flag:
         :param point_prediction_flag:
         :param auto_segmentation: if automatic is on, and grid_prediction_flag is on, it's full grid, multimask prediction. if box: it's a tight box around the gt. If point: random bg point from the gt box.
@@ -394,9 +394,16 @@ class Segmenter():
                 add_pts[0] = [com[0], com[1]]
             self.add_pts = add_pts
             self.remove_pts = remove_pts
-            masks, _, _ = self.predictor.predict(point_coords=np.concatenate([add_pts, remove_pts]),
-                                                 point_labels=np.array([1] * len(add_pts) + [0] * len(remove_pts)),
-                                                 multimask_output=False)
+            mask_inputs = None
+            for i in range(add_pts.shape[0]):
+                add_pts = self.add_pts[:i+1,:]
+                remove_pts = self.remove_pts[:i + 1, :]
+                masks, scores, logits = self.predictor.predict(point_coords=np.concatenate([add_pts, remove_pts]),
+                                                     point_labels=np.array([1] * len(add_pts) + [0] * len(remove_pts)),
+                                                     multimask_output=True, mask_input = mask_inputs)
+                mask_inputs = torch.sigmoid(torch.as_tensor(logits, dtype=torch.float, device="mps"))
+            i = scores.argmax()
+            masks = masks[i:i+1,:,:]
             return masks
         else:
             print("No inputs to box prediction")
