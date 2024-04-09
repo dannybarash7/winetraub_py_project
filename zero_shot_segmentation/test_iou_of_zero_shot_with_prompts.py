@@ -493,8 +493,8 @@ def visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dic
     if args.point:
         add_pts,remove_pts = prompts["add"], prompts["remove"]
         #overlay points
-        plt.scatter(remove_pts[:, 1], remove_pts[:, 0], color='red', marker='o', s=10)
-        plt.scatter(add_pts[:, 1], add_pts[:, 0], color='lightgreen', marker='+', s=15)
+        plt.scatter(remove_pts[:, 0], remove_pts[:, 1], color='red', marker='o', s=10)
+        plt.scatter(add_pts[:, 0], add_pts[:, 1], color='lightgreen', marker='+', s=15)
     if args.box:
         #overlay box
         rectangle_coords = prompts['box']

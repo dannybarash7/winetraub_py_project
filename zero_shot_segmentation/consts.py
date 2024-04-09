@@ -1,3 +1,3 @@
-MEDSAM = True
+MEDSAM = False
 SAMMED_2D = False
-SAM = False
+SAM = True

@@ -19,7 +19,7 @@ if SAMMED_2D:
     from SAM_Med2D.segment_anything import sam_model_registry as sammed_model_registry
     from SAM_Med2D.segment_anything.predictor_sammed import SammedPredictor
 segmenter = None
-def run_gui(img, weights_path, args, gt_mask = None, auto_segmentation= True):
+def run_gui(img, weights_path, args, gt_mask = None, auto_segmentation= True, prompts = None):
     global segmenter
     if img is None:
         raise Exception("Image file not found.")
@@ -32,7 +32,7 @@ def run_gui(img, weights_path, args, gt_mask = None, auto_segmentation= True):
         img = np.repeat(img[:, :, np.newaxis], 3, axis=2)
 
     if args.point:
-        segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask, point_prediction_flag=True, npoints = args.npoints)
+        segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask, point_prediction_flag=True, npoints = args.npoints, prompts = prompts)
     elif args.box:
         segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask, box_prediction_flag=True)
     elif args.grid:
@@ -81,7 +81,7 @@ def get_point_grid():
 class Segmenter():
     _predictor = None
 
-    def __init__(self, img, weights_path,  auto_segmentation, npoints = 0, box_prediction_flag=False, point_prediction_flag = False, grid_prediction_flag = False, gt_mask = None, remaining_points = 20):
+    def __init__(self, img, weights_path,  auto_segmentation, npoints = 0, box_prediction_flag=False, point_prediction_flag = False, grid_prediction_flag = False, gt_mask = None, remaining_points = 20, prompts = None):
         """
 
         :param img:
@@ -105,6 +105,7 @@ class Segmenter():
         self.auto_segmentation = auto_segmentation
         self.gt_mask = gt_mask
         self.init_points = npoints
+        self.prompts = prompts
 
         if Segmenter._predictor is None: #init predictor
             if SAMMED_2D:
@@ -377,7 +378,7 @@ class Segmenter():
         mask = (points[:, 1] >= x1) & (points[:, 1] <= x2) & (points[:, 0] >= y1) & (points[:, 0] <= y2)
         return points[mask]
     def get_mask_for_auto_point(self):
-        if self.gt_mask is not None:
+        if self.prompts is None:
             user_box = bounding_rectangle(self.gt_mask)
             com = get_center_of_mass(self.gt_mask)
             #Note: all points returning from argwhere are in [y,x] (row,column) format.
@@ -392,27 +393,41 @@ class Segmenter():
             add_pts = self.sample_points(pos_points)
             if self.gt_mask[com[0], com[1]]: #if center of mass is in forground, overwrite the first point with it
                 add_pts[0] = [com[0], com[1]]
-            self.add_pts = add_pts
-            self.remove_pts = remove_pts
-            mask_inputs = None
+        else:
+            add_pts = self.prompts["add"]
+            remove_pts = self.prompts["remove"]
+
+        self.add_pts = add_pts
+        self.remove_pts = remove_pts
+        mask_inputs = None
+
+        if SAMMED_2D:
             for i in range(add_pts.shape[0]):
                 add_pts = self.add_pts[:i+1,:]
                 remove_pts = self.remove_pts[:i + 1, :]
                 masks, scores, logits = self.predictor.predict(point_coords=np.concatenate([add_pts, remove_pts]),
-                                                     point_labels=np.array([1] * len(add_pts) + [0] * len(remove_pts)),
+                                                     point_labels=np.array([1] * len(self.add_pts) + [0] * len(self.remove_pts)),
                                                      multimask_output=True, mask_input = mask_inputs)
+
                 mask_inputs = torch.sigmoid(torch.as_tensor(logits, dtype=torch.float, device="mps"))
+        if SAM:
+            masks, scores, logits = self.predictor.predict(point_coords=np.concatenate([self.add_pts, self.remove_pts]),
+                                                           point_labels=np.array(
+                                                               [1] * len(self.add_pts) + [0] * len(self.remove_pts)),
+                                                           multimask_output=True, mask_input=mask_inputs)
+            """
+            Thougts: 1. compare single point input with the web demo. if works, compare iterative inputs with the web demo.
+            """
+
             i = scores.argmax()
             masks = masks[i:i+1,:,:]
-            return masks
-        else:
-            print("No inputs to box prediction")
-        return None
+        return masks
 
     def sample_points(self, points_in_mask):
         num_rows = points_in_mask.shape[0]
         random_index = np.random.randint(0, num_rows, size = self.npoints)
-        points_xy_in_mask = points_in_mask[random_index]
+        points_yx_in_mask = points_in_mask[random_index]
+        points_xy_in_mask = points_yx_in_mask[:,::-1]
         return points_xy_in_mask
 
     def handle_single_mask(self, masks):
@@ -546,8 +561,8 @@ class Segmenter():
 
 
 
-def run_gui_segmentation(img, weights_path, gt_mask, args):
-    segmenter = run_gui(img, weights_path, args, gt_mask)
+def run_gui_segmentation(img, weights_path, gt_mask, args, prompts):
+    segmenter = run_gui(img, weights_path, args, gt_mask, prompts = prompts)
     segmenter.global_masks[segmenter.global_masks>0]=1
     points_used = segmenter.init_points - segmenter.remaining_points
     #Danny: masks is for all masks, global masks is for the unified fixes

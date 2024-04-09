@@ -81,7 +81,7 @@ def is_trapezoid_image(oct_image):
     if top_row_first_non_zero_index > margin or mid_row_first_non_zero_index > margin:
         return True
 
-def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, downsample = False, output_vhist_path = None):
+def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, downsample = False, output_vhist_path = None, prompts = None):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
     # is it sheered?
@@ -142,12 +142,12 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
         # predictor.set_image(virtual_histology_image)
         # masks, scores, logits = predictor.predict(point_coords=input_point, point_labels=input_label,
         #                                          multimask_output=False, )
-        segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args)
+        segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts)
         if downsample:
             segmentation = cv2.resize(segmentation, (0, 0), fx=4, fy=4)
 
     else:
-        segmentation, points_used, prompts = run_gui_segmentation(cropped_oct, weights_path, gt_mask = cropped_histology_gt, args = args)
+        segmentation, points_used, prompts = run_gui_segmentation(cropped_oct, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts)
         virtual_histology_image = None
     # bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
     return segmentation, virtual_histology_image, cropped_histology_gt, cropped_oct, points_used, warped_mask_true, prompts
