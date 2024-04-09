@@ -13,6 +13,7 @@ To get started,
 [open this notebook in colab](https://colab.research.google.com/github/WinetraubLab/OCT2Hist-ModelInference/blob/main/run_oct2hist.ipynb) and run.
 """
 import argparse
+import pickle
 import sys
 import matplotlib.patches as patches
 import numpy
@@ -262,11 +263,14 @@ def main(args):
         # oct
         if is_oct:
             print("OCT segmentation")
-            oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts  = predict(image_path, mask_true,
+            oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts, crop_args  = predict(image_path, mask_true,
                                                                               args=args,
                                                                               weights_path=CHECKPOINT_PATH,
                                                                               create_vhist=False)
 
+            crop_args_path = f'{os.path.join(output_image_dir, image_name)}_oct_crop_args.pickle'
+            with open(crop_args_path, 'wb') as file:
+                pickle.dump(crop_args, file)
             path = f'{os.path.join(output_image_dir, image_name)}_cropped_oct_image.png'
             # save image to disk
             cv2.imwrite(path, cropped_oct_image)
@@ -351,13 +355,16 @@ def main(args):
             # v. histology segmentation
             print("virtual histology segmentation")
             path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
-            cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts  = predict(image_path,
+            cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts , crop_args  = predict(image_path,
                                                                                                           mask_true,
                                                                                                           args = args,
                                                                                                           weights_path=CHECKPOINT_PATH,
                                                                                                           create_vhist=create_virtual_histology,
                                                                                                           output_vhist_path=path)
             # cropped_vhist_mask_true = crop(warped_vhist_mask_true, **crop_args)
+            crop_args_path = f'{os.path.join(output_image_dir, image_name)}_vhist_crop_args.pickle'
+            with open(crop_args_path, 'wb') as file:
+                pickle.dump(crop_args, file)
             if is_virtual_histology:
                 cropped_vhist = roboflow_next_img
             if visualize_input_vhist:

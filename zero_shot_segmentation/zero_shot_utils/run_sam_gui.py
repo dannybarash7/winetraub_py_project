@@ -414,13 +414,13 @@ class Segmenter():
             masks, scores, logits = self.predictor.predict(point_coords=np.concatenate([self.add_pts, self.remove_pts]),
                                                            point_labels=np.array(
                                                                [1] * len(self.add_pts) + [0] * len(self.remove_pts)),
-                                                           multimask_output=True, mask_input=mask_inputs)
+                                                           multimask_output=False, mask_input=mask_inputs)
             """
             Thougts: 1. compare single point input with the web demo. if works, compare iterative inputs with the web demo.
             """
 
-            i = scores.argmax()
-            masks = masks[i:i+1,:,:]
+            # i = scores.argmax()
+            # masks = masks[i:i+1,:,:]
         return masks
 
     def sample_points(self, points_in_mask):
