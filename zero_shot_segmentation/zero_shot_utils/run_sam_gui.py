@@ -401,26 +401,10 @@ class Segmenter():
         self.remove_pts = remove_pts
         mask_inputs = None
 
-        if SAMMED_2D:
-            for i in range(add_pts.shape[0]):
-                add_pts = self.add_pts[:i+1,:]
-                remove_pts = self.remove_pts[:i + 1, :]
-                masks, scores, logits = self.predictor.predict(point_coords=np.concatenate([add_pts, remove_pts]),
-                                                     point_labels=np.array([1] * len(self.add_pts) + [0] * len(self.remove_pts)),
-                                                     multimask_output=True, mask_input = mask_inputs)
-
-                mask_inputs = torch.sigmoid(torch.as_tensor(logits, dtype=torch.float, device="mps"))
-        if SAM:
-            masks, scores, logits = self.predictor.predict(point_coords=np.concatenate([self.add_pts, self.remove_pts]),
-                                                           point_labels=np.array(
-                                                               [1] * len(self.add_pts) + [0] * len(self.remove_pts)),
-                                                           multimask_output=False, mask_input=mask_inputs)
-            """
-            Thougts: 1. compare single point input with the web demo. if works, compare iterative inputs with the web demo.
-            """
-
-            # i = scores.argmax()
-            # masks = masks[i:i+1,:,:]
+        masks, scores, logits = self.predictor.predict(point_coords=np.concatenate([self.add_pts, self.remove_pts]),
+                                                       point_labels=np.array(
+                                                           [1] * len(self.add_pts) + [0] * len(self.remove_pts)),
+                                                       multimask_output=False, mask_input=mask_inputs)
         return masks
 
     def sample_points(self, points_in_mask):
