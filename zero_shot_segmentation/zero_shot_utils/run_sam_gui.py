@@ -8,6 +8,7 @@ import numpy as np
 from skimage import transform
 import torch.nn.functional as F
 
+from OCT2Hist_UseModel.utils.masking import apply_closing_operation
 from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM
 from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass
 import sys
@@ -93,7 +94,7 @@ class Segmenter():
         :param gt_mask:
         """
 
-        self.device = "cpu"
+        self.device = "mps"
         self.img = img
         self.min_mask_region_area = 500
         self.npoints = npoints
@@ -114,7 +115,7 @@ class Segmenter():
                 args.image_size = 256
                 args.encoder_adapter = True
                 args.sam_checkpoint = "/Users/dannybarash/Code/oct/medsam/sam-med2d/OCT2Hist_UseModel/SAM_Med2D/pretrain_model/sam-med2d_b.pth"
-                device = "cpu"
+                device = "mps"
                 model = sammed_model_registry["vit_b"](args).to(device)
                 self.sam = model# sam_model_registry["vit_h"](checkpoint=weights_path)
             if MEDSAM:
@@ -419,6 +420,7 @@ class Segmenter():
         mask[self.global_masks > 0] = 0
         mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
         mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")
+        mask = apply_closing_operation(mask)
         contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         xs, ys = [], []
         for contour in contours:  # nan to disconnect contours

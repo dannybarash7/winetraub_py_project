@@ -84,17 +84,6 @@ def is_trapezoid_image(oct_image):
 def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, downsample = False, output_vhist_path = None, prompts = None):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
-    # is it sheered?
-    # right_column = oct_image.shape[1] - 1
-    # if is_trapezoid_image(oct_image) and mask_true is not None:
-    #     oct_image, crop_coords = crop_oct_from_trapezoid(oct_image)
-    #     # #TODO: check the warped mask true path...
-    #     mask_true_uint8 = mask_true.astype(np.uint8) * 255
-    #     warped_mask_true = mask_true_uint8[crop_coords[0]: crop_coords[1], crop_coords[2]:crop_coords[3]]
-    #     # warped_mask_true = utils.pad(warped_mask_true)
-    #     # warped_mask_true = cv2.warpPerspective(mask_true_uint8, affine_transform_matrix, (mask_true.shape[1], mask_true.shape[0]))
-    #     warped_mask_true = (warped_mask_true > 0)
-    # else:
     warped_mask_true = mask_true
     # OCT image's pixel size
     microns_per_pixel_z = 1
@@ -108,43 +97,19 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
     cropped_oct, crop_args = crop_oct_for_pix2pix(rescaled, y_center)
     cropped_histology_gt = crop(warped_mask_true, **crop_args)
 
-    # Calculate the histogram
-    # histogram = cv2.calcHist([cropped], [0], None, [256], [0, 256])
-
-    # Plot the histogram
-    # plt.plot(histogram)
-    # plt.title('Grayscale Image Histogram')
-    # plt.xlabel('Pixel Value')
-    # plt.ylabel('Frequency')
-    # plt.show()
-
     if create_vhist:
 
         # run vh&e
         virtual_histology_image, _, o2h_input = oct2hist.run_network(cropped_oct,
                                                                      microns_per_pixel_x=microns_per_pixel_x,
                                                                      microns_per_pixel_z=microns_per_pixel_z)
-
         #take the R channel
         # virtual_histology_image = cv2.cvtColor(virtual_histology_image,cv2.COLOR_BGR2RGB)
 
         if output_vhist_path:
             cv2.imwrite(output_vhist_path, virtual_histology_image)
-        # virtual_histology_image = virtual_histology_image[:,:,0]
-        # virtual_histology_image_copy = virtual_histology_image.copy()
-        if downsample:
-            blurred_image = cv2.GaussianBlur(virtual_histology_image, (0, 0), 4)
-            downsampled_image = cv2.resize(blurred_image, (0, 0), fx=0.25, fy=0.25)
-            virtual_histology_image = downsampled_image
-        # mask
-        # input_point, input_label = get_sam_input_points(masked_gel_image, virtual_histology_image)
-        #
-        # predictor.set_image(virtual_histology_image)
-        # masks, scores, logits = predictor.predict(point_coords=input_point, point_labels=input_label,
-        #                                          multimask_output=False, )
+
         segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts)
-        if downsample:
-            segmentation = cv2.resize(segmentation, (0, 0), fx=4, fy=4)
 
     else:
         segmentation, points_used, prompts = run_gui_segmentation(cropped_oct, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts)

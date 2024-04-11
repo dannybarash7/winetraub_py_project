@@ -334,7 +334,7 @@ def apply_closing_operation(mask):
   return binary_result
 
 
-def show_mask(mask, ax, secondcolor=False, alpha = 0.6, outline = False, nice = False):
+def show_mask(mask, ax, secondcolor=False, alpha = 0.6, outline = False):
 
     if outline:
       alpha = 1.0
@@ -350,8 +350,6 @@ def show_mask(mask, ax, secondcolor=False, alpha = 0.6, outline = False, nice = 
         color = np.array([8 / 255, 255 / 255, 128 / 255, alpha])
     else:
         color = np.array([0 / 255, 128 / 255, 255 / 255, alpha])
-    if nice:
-      mask = apply_closing_operation(mask)
     h, w = mask.shape[-2:]
     mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
     ax.imshow(mask_image)

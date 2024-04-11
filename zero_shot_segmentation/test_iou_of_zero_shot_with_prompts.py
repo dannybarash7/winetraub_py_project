@@ -44,7 +44,7 @@ rf_api_key= "R04BinsZcBZ6PsfKR2fP"
 rf_workspace= "yolab-kmmfx"
 rf_project_name = "paper_data"
 rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
-version = 3
+version = 4
 
 if MEDSAM:
     CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/medsam/MedSAM/work_dir/MedSAM/medsam_vit_b.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
@@ -53,7 +53,7 @@ if SAM:
 if SAMMED_2D:
     CHECKPOINT_PATH = None
 
-roboflow_annot_dataset_dir = os.path.join(os.getcwd(),f"./paper_data-2/test")
+roboflow_annot_dataset_dir = os.path.join(os.getcwd(),f"./paper_data-{version}/test")
 #TODO: change this:
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
 real_histology_dir = raw_oct_dataset_dir
@@ -291,8 +291,6 @@ def main(args):
                 if visualize_pred_vs_gt_oct:
                     visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dice, image_name,
                                          output_image_dir, save_diff_image, prompts, ext = "oct_pred")
-                    visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dice, image_name,
-                                         output_image_dir, save_diff_image, prompts, ext="nice_oct_pred", nice = True)
 
                 total_samples_oct += 1
 
@@ -404,8 +402,6 @@ def main(args):
             if visualize_pred_over_vhist:
                 visualize_prediction(best_mask, mask_true, cropped_vhist, dice, image_name,
                                      output_image_dir, save_diff_image, prompts, ext = "vhist_pred")
-                visualize_prediction(best_mask, mask_true, cropped_vhist, dice, image_name,
-                                     output_image_dir, save_diff_image, prompts, ext="nice_vhist_pred", nice=True)
                 visualize_prediction(best_mask, mask_true, cropped_oct_image, dice, image_name,
                                      output_image_dir, save_diff_image, prompts, ext="vhist_pred_over_oct")
                 # plt.figure(figsize=(5, 5))
@@ -489,8 +485,8 @@ def visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dic
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
     plt.imshow(cropped_oct_image)
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
-    c1 = show_mask(best_mask, plt.gca(), nice = nice)
-    c2 = show_mask(cropped_histology_gt, plt.gca(), secondcolor=True, outline=True, nice = False)
+    c1 = show_mask(best_mask, plt.gca())
+    c2 = show_mask(cropped_histology_gt, plt.gca(), secondcolor=True, outline=True)
     # c2 = show_mask(cropped_histology_gt, plt.gca(), random_color=True, alpha=0.2)
     plt.axis('off')
     # plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}")
