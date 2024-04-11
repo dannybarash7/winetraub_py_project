@@ -14,6 +14,7 @@ To get started,
 """
 import argparse
 import pickle
+import shutil
 import sys
 import matplotlib.patches as patches
 import numpy
@@ -523,6 +524,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", help="Specify output directory, e.g. './images/point_prediction' ")
     parser.add_argument("--take_first_n", help="take first n images", default=-1, type=int)
     parser.add_argument("--npoints", help="number_of_prediction_points", default=10, type=int)
+    parser.add_argument("--remove_output_dir", action="store_true", help="remove output dir before running the script")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--point", action="store_true", help="Specify a point.")
     group.add_argument("--box", action="store_true", help="Specify a box.")
@@ -541,5 +543,7 @@ if __name__ == "__main__":
     elif not args.output_dir:
         print("Please specify output dir.")
     else:
+        if args.remove_output_dir:
+            shutil.rmtree(args.output_dir)
         main(args)
 

@@ -93,8 +93,10 @@ class Segmenter():
         :param auto_segmentation: if automatic is on, and grid_prediction_flag is on, it's full grid, multimask prediction. if box: it's a tight box around the gt. If point: random bg point from the gt box.
         :param gt_mask:
         """
-
-        self.device = "mps"
+        if MEDSAM:
+            self.device = "cpu"
+        else:
+            self.device = "mps"
         self.img = img
         self.min_mask_region_area = 500
         self.npoints = npoints
@@ -115,8 +117,7 @@ class Segmenter():
                 args.image_size = 256
                 args.encoder_adapter = True
                 args.sam_checkpoint = "/Users/dannybarash/Code/oct/medsam/sam-med2d/OCT2Hist_UseModel/SAM_Med2D/pretrain_model/sam-med2d_b.pth"
-                device = "mps"
-                model = sammed_model_registry["vit_b"](args).to(device)
+                model = sammed_model_registry["vit_b"](args).to(self.device)
                 self.sam = model# sam_model_registry["vit_h"](checkpoint=weights_path)
             if MEDSAM:
                 self.sam = sam_model_registry["vit_b"](checkpoint=weights_path)
