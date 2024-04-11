@@ -174,20 +174,35 @@ def main(args):
     skip_real_histology = False
     create_virtual_histology = True
     is_input_always_oct = True
+    continue_for_existing_images = True
+    sam_path = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/images/box_prediction_with_vhist_nice/iou_scores.csv"
+    medsam_path = "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/images/box_prediction_with_vhist_nice/iou_scores.csv"
+    sammed2d_path = "/Users/dannybarash/Code/oct/medsam/sam-med2d/images/box_prediction_with_vhist_nice/iou_scores.csv"
+    if continue_for_existing_images:
+        if SAM:
+            df = pd.read_csv(sam_path, index_col = 'Unnamed: 0')
+        if MEDSAM:
+            df = pd.read_csv(medsam_path, index_col = 'Unnamed: 0')
+        if SAMMED_2D:
+            df = pd.read_csv(sammed2d_path, index_col = 'Unnamed: 0')
+    else:
+        index_array = [extract_filename_prefix(file) for file in image_files]
+        df = pd.DataFrame({
+            "iou_vhist": numpy.nan,
+            "nclicks_vhist": numpy.nan,
+            "iou_oct": numpy.nan,  # Replace with your data for "iou oct"
+            "nclicks_oct": numpy.nan,  # Replace with your data for "iou oct"
+            "iou_hist": numpy.nan,
+            "nclicks_hist": numpy.nan,
+        }, index=index_array)
+
+
     start_from_n = 1
     take_first_n_images = args.take_first_n if args.take_first_n > 0 else -1
     output_image_dir = args.output_dir
     if not os.path.exists(output_image_dir):
         os.makedirs(output_image_dir)
-    index_array = [extract_filename_prefix(file) for file in image_files]
-    df = pd.DataFrame({
-        "iou_vhist": numpy.nan,
-        "nclicks_vhist": numpy.nan,
-        "iou_oct": numpy.nan,  # Replace with your data for "iou oct"
-        "nclicks_oct": numpy.nan,  # Replace with your data for "iou oct"
-        "iou_hist": numpy.nan,
-        "nclicks_hist": numpy.nan,
-    }, index=index_array)
+
     i = 0
 
     def save_diff_image(oct_mask, cropped_histology_gt, path):
@@ -205,6 +220,11 @@ def main(args):
     if take_first_n_images > 0:
         image_files = image_files[:take_first_n_images]
     for oct_fname in tqdm(image_files):
+        if continue_for_existing_images:
+            sample_name = extract_filename_prefix(oct_fname)
+            row = df.loc[sample_name]
+            if not pandas.isna(row["dice_oct"]) and not pandas.isna(row["dice_vhist"]):
+                continue
         # if not extract_filename_prefix(oct_fname).startswith("LE-03-Slide05_Section02_yp0_A"):
         #     continue
         # print("Skipping to LHC-31-Slide03_Section03_yp0_A... ")
