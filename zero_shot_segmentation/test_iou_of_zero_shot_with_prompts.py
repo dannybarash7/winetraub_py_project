@@ -543,7 +543,7 @@ if __name__ == "__main__":
     elif not args.output_dir:
         print("Please specify output dir.")
     else:
-        if args.remove_output_dir:
+        if args.remove_output_dir and os.path.exists(args.output_dir):
             shutil.rmtree(args.output_dir)
         main(args)
 
