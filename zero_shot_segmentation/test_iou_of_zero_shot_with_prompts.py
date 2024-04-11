@@ -13,6 +13,7 @@ To get started,
 [open this notebook in colab](https://colab.research.google.com/github/WinetraubLab/OCT2Hist-ModelInference/blob/main/run_oct2hist.ipynb) and run.
 """
 import argparse
+import pickle
 import sys
 import matplotlib.patches as patches
 import numpy
@@ -43,7 +44,7 @@ rf_api_key= "R04BinsZcBZ6PsfKR2fP"
 rf_workspace= "yolab-kmmfx"
 rf_project_name = "paper_data"
 rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
-version = 2
+version = 4
 
 if MEDSAM:
     CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/medsam/MedSAM/work_dir/MedSAM/medsam_vit_b.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
@@ -52,7 +53,7 @@ if SAM:
 if SAMMED_2D:
     CHECKPOINT_PATH = None
 
-roboflow_annot_dataset_dir = os.path.join(os.getcwd(),f"./paper_data-2/test")
+roboflow_annot_dataset_dir = os.path.join(os.getcwd(),f"./paper_data-{version}/test")
 #TODO: change this:
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
 real_histology_dir = raw_oct_dataset_dir
@@ -262,11 +263,14 @@ def main(args):
         # oct
         if is_oct:
             print("OCT segmentation")
-            oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts  = predict(image_path, mask_true,
+            oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts, crop_args  = predict(image_path, mask_true,
                                                                               args=args,
                                                                               weights_path=CHECKPOINT_PATH,
                                                                               create_vhist=False)
 
+            crop_args_path = f'{os.path.join(output_image_dir, image_name)}_oct_crop_args.pickle'
+            with open(crop_args_path, 'wb') as file:
+                pickle.dump(crop_args, file)
             path = f'{os.path.join(output_image_dir, image_name)}_cropped_oct_image.png'
             # save image to disk
             cv2.imwrite(path, cropped_oct_image)
@@ -287,8 +291,6 @@ def main(args):
                 if visualize_pred_vs_gt_oct:
                     visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dice, image_name,
                                          output_image_dir, save_diff_image, prompts, ext = "oct_pred")
-                    visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dice, image_name,
-                                         output_image_dir, save_diff_image, prompts, ext="nice_oct_pred", nice = True)
 
                 total_samples_oct += 1
 
@@ -351,13 +353,16 @@ def main(args):
             # v. histology segmentation
             print("virtual histology segmentation")
             path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
-            cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts  = predict(image_path,
+            cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts , crop_args  = predict(image_path,
                                                                                                           mask_true,
                                                                                                           args = args,
                                                                                                           weights_path=CHECKPOINT_PATH,
                                                                                                           create_vhist=create_virtual_histology,
                                                                                                           output_vhist_path=path)
             # cropped_vhist_mask_true = crop(warped_vhist_mask_true, **crop_args)
+            crop_args_path = f'{os.path.join(output_image_dir, image_name)}_vhist_crop_args.pickle'
+            with open(crop_args_path, 'wb') as file:
+                pickle.dump(crop_args, file)
             if is_virtual_histology:
                 cropped_vhist = roboflow_next_img
             if visualize_input_vhist:
@@ -397,8 +402,6 @@ def main(args):
             if visualize_pred_over_vhist:
                 visualize_prediction(best_mask, mask_true, cropped_vhist, dice, image_name,
                                      output_image_dir, save_diff_image, prompts, ext = "vhist_pred")
-                visualize_prediction(best_mask, mask_true, cropped_vhist, dice, image_name,
-                                     output_image_dir, save_diff_image, prompts, ext="nice_vhist_pred", nice=True)
                 visualize_prediction(best_mask, mask_true, cropped_oct_image, dice, image_name,
                                      output_image_dir, save_diff_image, prompts, ext="vhist_pred_over_oct")
                 # plt.figure(figsize=(5, 5))
@@ -493,8 +496,8 @@ def visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dic
     if args.point:
         add_pts,remove_pts = prompts["add"], prompts["remove"]
         #overlay points
-        plt.scatter(remove_pts[:, 1], remove_pts[:, 0], color='red', marker='o', s=10)
-        plt.scatter(add_pts[:, 1], add_pts[:, 0], color='lightgreen', marker='+', s=15)
+        plt.scatter(remove_pts[:, 0], remove_pts[:, 1], color='red', marker='o', s=10)
+        plt.scatter(add_pts[:, 0], add_pts[:, 1], color='lightgreen', marker='+', s=15)
     if args.box:
         #overlay box
         rectangle_coords = prompts['box']
@@ -520,7 +523,6 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", help="Specify output directory, e.g. './images/point_prediction' ")
     parser.add_argument("--take_first_n", help="take first n images", default=-1, type=int)
     parser.add_argument("--npoints", help="number_of_prediction_points", default=10, type=int)
-    parser.add_argument("--nice", default = True, help="Specify a grid.", type=bool)
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--point", action="store_true", help="Specify a point.")
     group.add_argument("--box", action="store_true", help="Specify a box.")
