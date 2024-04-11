@@ -396,7 +396,7 @@ def main(args):
                 plt.suptitle(f"Generated vhist and ground truth mask")
                 plt.title(f"name {image_name}")
                 plt.savefig(f'{os.path.join(output_image_dir, image_name)}_input_vhist.png')
-                plt.close()
+                plt.close('all')
 
 
             if len(cropped_vhist_mask) == 0:
@@ -536,7 +536,7 @@ def visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dic
     fpath = f'{os.path.join(output_image_dir, image_name)}_{ext}'
     plt.savefig(f'{fpath}.png', bbox_inches='tight', pad_inches=0)
     #save_diff_image(best_mask, cropped_histology_gt, fpath)
-    plt.close()
+    plt.close('all')
 
 
 if __name__ == "__main__":
