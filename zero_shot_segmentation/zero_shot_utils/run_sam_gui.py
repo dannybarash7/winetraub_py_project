@@ -117,7 +117,7 @@ class Segmenter():
                 args.image_size = 256
                 args.encoder_adapter = True
                 args.sam_checkpoint = "/Users/dannybarash/Code/oct/medsam/sam-med2d/OCT2Hist_UseModel/SAM_Med2D/pretrain_model/sam-med2d_b.pth"
-                model = sammed_model_registry["vit_b"](args).to(self.device)
+                model = sammed_model_registry["vit_b"](args)
                 self.sam = model# sam_model_registry["vit_h"](checkpoint=weights_path)
             if MEDSAM:
                 self.sam = sam_model_registry["vit_b"](checkpoint=weights_path)
