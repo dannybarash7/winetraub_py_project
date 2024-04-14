@@ -45,7 +45,7 @@ rf_api_key= "R04BinsZcBZ6PsfKR2fP"
 rf_workspace= "yolab-kmmfx"
 rf_project_name = "paper_data"
 rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
-version = 4
+version = 5
 
 if MEDSAM:
     CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/medsam/MedSAM/work_dir/MedSAM/medsam_vit_b.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
@@ -96,9 +96,10 @@ def download_images_and_masks(api_key, workspace, project_name, dataset_name, ve
     return dataset
 
 # Function to calculate Intersection over Union (IoU)
-def calculate_iou(mask_true, mask_pred, class_id):
+def calculate_iou(mask_true, mask_pred, class_id, dont_care_mask):
     #intersection = np.logical_and(mask_true == class_id, mask_pred == class_id)
-    intersection = np.logical_and(mask_true, mask_pred == class_id)
+    mask_pred[dont_care_mask] = mask_true[dont_care_mask]
+    intersection = np.logical_and(mask_true, (mask_pred == class_id) )
     union = np.logical_or(mask_true, mask_pred == class_id)
     true_count_gt = np.sum(mask_true)
     true_count_pred =np.sum(mask_pred)
@@ -107,22 +108,34 @@ def calculate_iou(mask_true, mask_pred, class_id):
     dice = 2*true_count_intersection / (true_count_gt+true_count_pred)
     return iou, dice
 
-def calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id):
+def calculate_iou_prev(mask_true, mask_pred, class_id, dont_care_mask):
+    #intersection = np.logical_and(mask_true == class_id, mask_pred == class_id)
+    intersection = np.logical_and(mask_true, (mask_pred == class_id) )
+    union = np.logical_or(mask_true, mask_pred == class_id)
+    true_count_gt = np.sum(mask_true)
+    true_count_pred =np.sum(mask_pred)
+    true_count_intersection = np.sum(intersection)
+    iou = true_count_intersection / np.sum(union)
+    dice = 2*true_count_intersection / (true_count_gt+true_count_pred)
+    return iou, dice
+
+def calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id, dont_care_mask):
     max_dice,max_iou = -1.0,-1.0
     best_mask = None
     for mask_pred in mask_predictions:
-        iou,dice = calculate_iou(mask_true, mask_pred, class_id)
+        iou_prev, dice_prev = calculate_iou_prev(mask_true, mask_pred, class_id, dont_care_mask)
+        iou,dice = calculate_iou(mask_true, mask_pred, class_id, dont_care_mask)
         if dice > max_dice:
             max_iou = iou
             max_dice = dice
             best_mask = mask_pred
     return max_iou, max_dice, best_mask
 
-def single_or_multiple_predictions(mask_true, mask_predictions, class_id):
+def single_or_multiple_predictions(mask_true, mask_predictions, class_id, dont_care_mask):
     if isinstance(mask_predictions, list):
-        return calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id)
+        return calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id, dont_care_mask)
     else:
-        return calculate_iou(mask_true, mask_predictions, class_id)
+        return calculate_iou(mask_true, mask_predictions, class_id, dont_care_mask)
 
 def make_mask_drawable(mask):
     mask = mask.astype(np.uint8)
@@ -178,7 +191,13 @@ def main(args):
     sam_path = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/images/box_prediction_with_vhist_nice/iou_scores.csv"
     medsam_path = "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/images/box_prediction_with_vhist_nice/iou_scores.csv"
     sammed2d_path = "/Users/dannybarash/Code/oct/medsam/sam-med2d/images/box_prediction_with_vhist_nice/iou_scores.csv"
-    if continue_for_existing_images:
+    if SAM:
+        csv_exists = os.path.exists(sam_path)
+    if MEDSAM:
+        csv_exists = os.path.exists(medsam_path)
+    if SAMMED_2D:
+        csv_exists = os.path.exists(sammed2d_path)
+    if continue_for_existing_images and csv_exists:
         if SAM:
             df = pd.read_csv(sam_path, index_col = 'Unnamed: 0')
         if MEDSAM:
@@ -193,6 +212,8 @@ def main(args):
             "iou_oct": numpy.nan,  # Replace with your data for "iou oct"
             "nclicks_oct": numpy.nan,  # Replace with your data for "iou oct"
             "iou_hist": numpy.nan,
+            "dice_oct": numpy.nan,
+            "dice_vhist": numpy.nan,
             "nclicks_hist": numpy.nan,
         }, index=index_array)
 
@@ -225,8 +246,8 @@ def main(args):
             row = df.loc[sample_name]
             if not pandas.isna(row["dice_oct"]) and not pandas.isna(row["dice_vhist"]):
                 continue
-        # if not extract_filename_prefix(oct_fname).startswith("LE-03-Slide05_Section02_yp0_A"):
-        #     continue
+        if not extract_filename_prefix(oct_fname).startswith("LG-44-Slide06_Section01_yp0_A"):
+            continue
         # print("Skipping to LHC-31-Slide03_Section03_yp0_A... ")
         is_real_histology = oct_fname.find("_B_") != -1 or oct_fname.find("histology") != -1
         is_oct = oct_fname.find("oct") != -1 or is_input_always_oct
@@ -253,12 +274,15 @@ def main(args):
         #     coco_mask = dataset.df.ann_segmentation[dataset.df.img_filename == real_histology_fname].values[0][0]
         #     mask_true = coco_mask_to_numpy(roboflow_next_img.shape[:2], coco_mask)
         # else:
-        coco_mask = dataset.df.ann_segmentation[dataset.df.img_filename == oct_fname].values[0][0]
-        mask_true = coco_mask_to_numpy(roboflow_next_img.shape[:2], coco_mask)
+        oct_data = dataset.df[dataset.df.img_filename == oct_fname]
+        epidermis_data = oct_data[oct_data.cat_name == "epidermis"].ann_segmentation.values[0][0]
+        dont_care_data = oct_data[oct_data.cat_name == "hair"].ann_segmentation.values[0][0]
+        epidermis_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], epidermis_data)
+        dont_care_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], dont_care_data)
         if visualize_input_gt:
             plt.figure(figsize=(5, 5))
             plt.imshow(roboflow_next_img)
-            show_mask(mask_true, plt.gca(), alpha=0.3)
+            show_mask(epidermis_mask, plt.gca(), alpha=0.3)
             plt.axis('off')
             plt.suptitle(f"Input oct and ground truth mask")
             plt.title(f"{image_name}")
@@ -276,15 +300,14 @@ def main(args):
 
         # get bbox
         # divide mask_true by bbox area
-        a=1
-        bbox = bounding_rectangle(mask_true)
+        bbox = bounding_rectangle(epidermis_mask)
         bbox_area = bbox[2] * bbox[3]
-        ntrue = numpy.unique(mask_true, return_counts=True)[1][1]
+        ntrue = numpy.unique(epidermis_mask, return_counts=True)[1][1]
         target_size_rel = ntrue/bbox_area
         # oct
         if is_oct:
             print("OCT segmentation")
-            oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts, crop_args  = predict(image_path, mask_true,
+            oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts, crop_args  = predict(image_path, epidermis_mask,
                                                                               args=args,
                                                                               weights_path=CHECKPOINT_PATH,
                                                                               create_vhist=False)
@@ -292,15 +315,16 @@ def main(args):
             crop_args_path = f'{os.path.join(output_image_dir, image_name)}_oct_crop_args.pickle'
             with open(crop_args_path, 'wb') as file:
                 pickle.dump(crop_args, file)
+            dont_care_mask = crop(dont_care_mask, **crop_args)
             path = f'{os.path.join(output_image_dir, image_name)}_cropped_oct_image.png'
             # save image to disk
             cv2.imwrite(path, cropped_oct_image)
             # Calculate IoU for each class# DERMIS
-            mask_true = cropped_histology_gt
+            epidermis_mask = cropped_histology_gt
             if warped_mask_true is None or warped_mask_true.sum().sum() == 0:
                 print(f"Could not segment OCT image {image_path}.")
             else:
-                epidermis_iou_oct, dice, best_mask = single_or_multiple_predictions(mask_true, oct_mask, EPIDERMIS)
+                epidermis_iou_oct, dice, best_mask = single_or_multiple_predictions(epidermis_mask, oct_mask, EPIDERMIS, dont_care_mask=dont_care_mask)
                 print(f"OCT iou: {epidermis_iou_oct}.")
                 print(f"OCT dice: {dice}.")
                 total_iou_oct[EPIDERMIS] += epidermis_iou_oct
@@ -375,7 +399,7 @@ def main(args):
             print("virtual histology segmentation")
             path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
             cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts , crop_args  = predict(image_path,
-                                                                                                          mask_true,
+                                                                                                          epidermis_mask,
                                                                                                           args = args,
                                                                                                           weights_path=CHECKPOINT_PATH,
                                                                                                           create_vhist=create_virtual_histology,
@@ -384,6 +408,7 @@ def main(args):
             crop_args_path = f'{os.path.join(output_image_dir, image_name)}_vhist_crop_args.pickle'
             with open(crop_args_path, 'wb') as file:
                 pickle.dump(crop_args, file)
+            dont_care_mask = crop(dont_care_mask, **crop_args)
             if is_virtual_histology:
                 cropped_vhist = roboflow_next_img
             if visualize_input_vhist:
@@ -405,8 +430,8 @@ def main(args):
             # cropped_vhist_mask[cropped_vhist_mask == 1] = True
             # cropped_vhist_mask[cropped_vhist_mask == 0] = False
             # cropped_oct_image = crop(roboflow_next_img, **crop_args)
-            epidermis_iou_vhist, dice, best_mask = single_or_multiple_predictions(mask_true, cropped_vhist_mask,
-                                                                                  EPIDERMIS)
+            epidermis_iou_vhist, dice, best_mask = single_or_multiple_predictions(epidermis_mask, cropped_vhist_mask,
+                                                                                  EPIDERMIS, dont_care_mask=dont_care_mask)
             if best_mask is None:
                 print(f"Could not calculate iou for {image_path}.")
                 continue
@@ -421,9 +446,9 @@ def main(args):
             total_samples_vhist += 1
 
             if visualize_pred_over_vhist:
-                visualize_prediction(best_mask, mask_true, cropped_vhist, dice, image_name,
+                visualize_prediction(best_mask, epidermis_mask, cropped_vhist, dice, image_name,
                                      output_image_dir, save_diff_image, prompts, ext = "vhist_pred")
-                visualize_prediction(best_mask, mask_true, cropped_oct_image, dice, image_name,
+                visualize_prediction(best_mask, epidermis_mask, cropped_oct_image, dice, image_name,
                                      output_image_dir, save_diff_image, prompts, ext="vhist_pred_over_oct")
                 # plt.figure(figsize=(5, 5))
                 # plt.imshow(cropped_vhist)

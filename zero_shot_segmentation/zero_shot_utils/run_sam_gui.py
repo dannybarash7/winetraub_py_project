@@ -323,7 +323,6 @@ class Segmenter():
         box_torch = torch.as_tensor(box_1024, dtype=torch.float, device=img_embed.device)
         if len(box_torch.shape) == 2:
             box_torch = box_torch[:, None, :]  # (B, 1, 4)
-        print(box_torch)
         sparse_embeddings, dense_embeddings = medsam_model.prompt_encoder(
             points=None,
             boxes=box_torch,
