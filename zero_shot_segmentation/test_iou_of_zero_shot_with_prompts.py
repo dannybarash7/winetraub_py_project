@@ -37,7 +37,6 @@ sys.path.append('./OCT2Hist_UseModel')
 sys.path.append('./zero_shot_segmentation')
 import cv2
 import matplotlib.pyplot as plt
-
 import os
 
 # Define the Roboflow project URL and API key
@@ -171,11 +170,10 @@ def main(args):
     visualize_pred_vs_gt_oct = True
     visualize_pred_over_vhist = True
     visualize_input_vhist = True
-    segment_real_hist = False
-    skip_real_histology = False
     create_virtual_histology = True
     is_input_always_oct = True
     continue_for_existing_images = False
+    single_image_to_segment = "LG-44-Slide06_Section01_yp0_A" #None
     sam_path = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/images/box_prediction_with_vhist_nice/iou_scores.csv"
     medsam_path = "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/images/box_prediction_with_vhist_nice/iou_scores.csv"
     sammed2d_path = "/Users/dannybarash/Code/oct/medsam/sam-med2d/images/box_prediction_with_vhist_nice/iou_scores.csv"
@@ -234,8 +232,9 @@ def main(args):
             row = df.loc[sample_name]
             if not pandas.isna(row["dice_oct"]) and not pandas.isna(row["dice_vhist"]):
                 continue
-        if not extract_filename_prefix(oct_fname).startswith("LG-44-Slide06_Section01_yp0_A"):
+        if single_image_to_segment is not None and not extract_filename_prefix(oct_fname).startswith(single_image_to_segment):
             continue
+
         # print("Skipping to LHC-31-Slide03_Section03_yp0_A... ")
         is_real_histology = oct_fname.find("_B_") != -1 or oct_fname.find("histology") != -1
         is_oct = oct_fname.find("oct") != -1 or is_input_always_oct
