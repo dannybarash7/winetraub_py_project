@@ -108,22 +108,10 @@ def calculate_iou(mask_true, mask_pred, class_id, dont_care_mask):
     dice = 2*true_count_intersection / (true_count_gt+true_count_pred)
     return iou, dice
 
-def calculate_iou_prev(mask_true, mask_pred, class_id, dont_care_mask):
-    #intersection = np.logical_and(mask_true == class_id, mask_pred == class_id)
-    intersection = np.logical_and(mask_true, (mask_pred == class_id) )
-    union = np.logical_or(mask_true, mask_pred == class_id)
-    true_count_gt = np.sum(mask_true)
-    true_count_pred =np.sum(mask_pred)
-    true_count_intersection = np.sum(intersection)
-    iou = true_count_intersection / np.sum(union)
-    dice = 2*true_count_intersection / (true_count_gt+true_count_pred)
-    return iou, dice
-
 def calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id, dont_care_mask):
     max_dice,max_iou = -1.0,-1.0
     best_mask = None
     for mask_pred in mask_predictions:
-        iou_prev, dice_prev = calculate_iou_prev(mask_true, mask_pred, class_id, dont_care_mask)
         iou,dice = calculate_iou(mask_true, mask_pred, class_id, dont_care_mask)
         if dice > max_dice:
             max_iou = iou
@@ -187,7 +175,7 @@ def main(args):
     skip_real_histology = False
     create_virtual_histology = True
     is_input_always_oct = True
-    continue_for_existing_images = True
+    continue_for_existing_images = False
     sam_path = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/images/box_prediction_with_vhist_nice/iou_scores.csv"
     medsam_path = "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/images/box_prediction_with_vhist_nice/iou_scores.csv"
     sammed2d_path = "/Users/dannybarash/Code/oct/medsam/sam-med2d/images/box_prediction_with_vhist_nice/iou_scores.csv"
@@ -339,61 +327,6 @@ def main(args):
 
                 total_samples_oct += 1
 
-        if is_real_histology:
-            # histology segmentation
-            print("histology segmentation")
-
-            # if segment_real_hist:
-            #     histology_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts  = predict(image_path, mask_true,
-            #                                                                             args=args,
-            #                                                                             weights_path=CHECKPOINT_PATH,
-            #                                                                             create_vhist=False)
-            #     if warped_mask_true is None or warped_mask_true.sum().sum() == 0:
-            #         print(f"Could not segment {image_path}.")
-            #         continue
-            #     warped_mask_true[warped_mask_true == 1] = True
-            #     warped_mask_true[warped_mask_true == 0] = False
-            #     # cropped_histology_image = crop(real_hist_img, **crop_args)
-            #     # path = f'{os.path.join(output_image_dir, image_name)}_cropped_histology.png'
-            #     # cv2.imwrite(path, cropped_histology_image)
-            #     # cropped_histology_gt = crop(warped_mask_true, **crop_args)
-            #     epidermis_iou_real_hist, dice = calculate_iou(mask_true, histology_mask, EPIDERMIS)
-            #     df.loc[image_name, "iou_hist"] = epidermis_iou_real_hist
-            #     df.loc[image_name, "dice_hist"] = dice
-            #     df.loc[image_name, "nclicks_hist"] = n_points_used
-            #     print(f"real histology iou: {epidermis_iou_real_hist}.")
-            #     print(f"real histology dice: {dice}.")
-            #     plt.figure(figsize=(5, 5))
-            #     roboflow_next_img = cv2.cvtColor(roboflow_next_img, cv2.COLOR_BGR2RGB)
-            #     plt.imshow(roboflow_next_img)
-            #     roboflow_next_img = cv2.cvtColor(roboflow_next_img, cv2.COLOR_BGR2RGB)
-            #     c1 = show_mask(histology_mask, plt.gca())
-            #     c2 = show_mask(mask_true, plt.gca(), secondcolor=True, alpha=0.2)
-            #     plt.axis('off')
-            #     plt.suptitle(f"Real histology segmentation: iou {epidermis_iou_real_hist:.2f}")
-            #     plt.title(f"{image_name}")
-            #     legend_elements = [
-            #         Patch(color=c1, alpha=1, label='Yours'),
-            #         Patch(color=c2, alpha=1, label='GT'),
-            #     ]
-            #     plt.legend(handles=legend_elements)
-            #
-            #     fpath = f'{os.path.join(output_image_dir, image_name)}_pred_real_hist'
-            #     plt.savefig(f'{fpath}.png')
-            #     # save_diff_image(histology_mask, mask_true, fpath)
-            #     plt.close()
-            #
-            #     plt.figure(figsize=(5, 5))
-            #     roboflow_next_img = cv2.cvtColor(roboflow_next_img, cv2.COLOR_BGR2RGB)
-            #     plt.imshow(roboflow_next_img)
-            #     roboflow_next_img = cv2.cvtColor(roboflow_next_img, cv2.COLOR_BGR2RGB)
-            #
-            #     show_mask(mask_true, plt.gca(), alpha=0.6)
-            #     plt.axis('off')
-            #     plt.suptitle(f"Input real histology and predicted mask, iou {epidermis_iou_real_hist:.2f}")
-            #     plt.title(f"name {image_name}")
-            #     plt.savefig(f'{os.path.join(output_image_dir, image_name)}_pred_hist.png')
-            #     plt.close()
         if is_virtual_histology or create_virtual_histology:
             # v. histology segmentation
             print("virtual histology segmentation")
