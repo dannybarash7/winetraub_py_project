@@ -296,7 +296,8 @@ def pad(image):
 def calculate_iou(mask_true, mask_pred, class_id, dont_care_mask):
     # intersection = np.logical_and(mask_true == class_id, mask_pred == class_id)
     if dont_care_mask is not None:
-        mask_pred[dont_care_mask] = mask_true[dont_care_mask]
+        mask_true = mask_true & (~dont_care_mask)
+        mask_pred = mask_pred & (~dont_care_mask)
     intersection = np.logical_and(mask_true, (mask_pred == class_id))
     union = np.logical_or(mask_true, mask_pred == class_id)
     true_count_gt = np.sum(mask_true)

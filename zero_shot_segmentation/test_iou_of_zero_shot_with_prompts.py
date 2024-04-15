@@ -53,7 +53,7 @@ continue_for_existing_images = False
 segment_real_histology = False
 
 # paths
-single_image_to_segment =  None #"LG-44-Slide06_Section01_yp0_A"  #
+single_image_to_segment =  "LG-44-Slide06_Section01_yp0_A"  #
 sam_path = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/images/box_prediction_with_vhist_nice/iou_scores.csv"
 medsam_path = "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/images/box_prediction_with_vhist_nice/iou_scores.csv"
 sammed2d_path = "/Users/dannybarash/Code/oct/medsam/sam-med2d/images/box_prediction_with_vhist_nice/iou_scores.csv"
