@@ -50,7 +50,7 @@ visualize_input_vhist = True
 
 create_virtual_histology = True
 segment_real_hist = True
-continue_for_existing_images = False
+continue_for_existing_images = True
 #None or filename
 single_image_to_segment =  None
 
@@ -79,7 +79,7 @@ def segment_histology(image_path, epidermis_mask, image_name, dont_care_mask):
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=False)
 
     dont_care_mask = crop(dont_care_mask, **crop_args)
-    path = f'{os.path.join(output_image_dir, image_name)}_cropped_oct_image.png'
+    path = f'{os.path.join(output_image_dir, image_name)}_cropped_histology_image.png'
     # save image to disk
     cv2.imwrite(path, cropped_histology_image)
     # Calculate IoU for each class# DERMIS
@@ -89,9 +89,9 @@ def segment_histology(image_path, epidermis_mask, image_name, dont_care_mask):
         epidermis_iou_real_hist, dice, best_mask = single_or_multiple_predictions(epidermis_mask, histology_mask,
                                                                                   EPIDERMIS,
                                                                                   dont_care_mask=dont_care_mask)
-        df.loc[image_name, "iou_hist"] = epidermis_iou_real_hist
+        df.loc[image_name, "iou_histology"] = epidermis_iou_real_hist
         df.loc[image_name, "dice_histology"] = dice
-        df.loc[image_name, "nclicks_hist"] = n_points_used
+
         print(f"real histology iou: {epidermis_iou_real_hist}.")
         print(f"real histology dice: {dice}.")
         if visualize_pred_vs_gt_oct:
@@ -249,13 +249,16 @@ def main(args):
 
     if SAM:
         csv_exists = os.path.exists(sam_path)
-        shutil.copyfile(sam_path, sam_path+".previous")
+        if csv_exists:
+            shutil.copyfile(sam_path, sam_path+".previous")
     if MEDSAM:
         csv_exists = os.path.exists(medsam_path)
-        shutil.copyfile(sam_path, medsam_path + ".previous")
+        if csv_exists:
+            shutil.copyfile(sam_path, medsam_path + ".previous")
     if SAMMED_2D:
         csv_exists = os.path.exists(sammed2d_path)
-        shutil.copyfile(sam_path, sammed2d_path + ".previous")
+        if csv_exists:
+            shutil.copyfile(sam_path, sammed2d_path + ".previous")
     if continue_for_existing_images and csv_exists:
         if SAM:
             df = pd.read_csv(sam_path, index_col='Unnamed: 0')
@@ -313,6 +316,8 @@ def main(args):
         if not skip_oct:
             segment_oct(image_path, epidermis_mask, image_name, dont_care_mask)
             total_samples_oct += 1
+        else:
+            print(f"skipping oct segmentation for image {image_name}")
         if segment_real_hist:
             skip_hist = continue_for_existing_images and check_column_exists(oct_fname, "dice_histology")
             if not skip_hist:
@@ -321,11 +326,15 @@ def main(args):
                 # histology segmentation
                 segment_histology(image_path, epidermis_mask, image_name, dont_care_mask)
                 total_samples_histology += 1
+            else:
+                print(f"skipping histology segmentation for image {image_name}")
         if create_virtual_histology:
             skip_vhist = continue_for_existing_images and check_column_exists(oct_fname, "dice_vhist")
             if not skip_vhist:
                 segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask)
                 total_samples_vhist += 1
+            else:
+                print(f"skipping virtual histology segmentation for image {image_name}")
         df.to_csv(os.path.join(output_image_dir, 'iou_scores.csv'), index=True)
     handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
                  total_samples_oct, total_samples_vhist, total_samples_histology)
