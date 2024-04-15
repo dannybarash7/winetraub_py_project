@@ -28,7 +28,7 @@ from tqdm import tqdm
 
 from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask
-from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version
+from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
 from zero_shot_segmentation.zero_shot_utils.predict_mask_on_oct_interactive import predict
 from zero_shot_segmentation.zero_shot_utils.utils import single_or_multiple_predictions, extract_filename_prefix, \
@@ -100,8 +100,8 @@ def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask):
         df.loc[image_name, "nclicks_oct"] = n_points_used
 
         if visualize_pred_vs_gt_oct:
-            visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dice, image_name, output_image_dir,
-                                 None, prompts, ext="oct_pred")
+            visualize_prediction(best_mask, cropped_histology_gt, dont_care_mask, cropped_oct_image, dice, image_name, output_image_dir,
+                                 prompts, ext="oct_pred")
 
 
 def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask):
@@ -117,13 +117,12 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask):
     with open(crop_args_path, 'wb') as file:
         pickle.dump(crop_args, file)
     dont_care_mask = crop(dont_care_mask, **crop_args)
-    cropped_vhist = roboflow_next_img
     if visualize_input_vhist:
         plt.figure(figsize=(5, 5))
         cropped_vhist = cv2.cvtColor(cropped_vhist, cv2.COLOR_BGR2RGB)
         plt.imshow(cropped_vhist)
         cropped_vhist = cv2.cvtColor(cropped_vhist, cv2.COLOR_BGR2RGB)
-        show_mask(cropped_vhist_mask_true, plt.gca(), alpha=0.6)
+        show_mask(cropped_vhist_mask_true, plt.gca(), color_arr= COLORS.GT)
         plt.axis('off')
         plt.suptitle(f"Generated vhist and ground truth mask")
         plt.title(f"name {image_name}")
@@ -157,9 +156,9 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask):
     total_dice_vhist[EPIDERMIS] += dice
 
     if visualize_pred_over_vhist:
-        visualize_prediction(best_mask, epidermis_mask, cropped_vhist, dice, image_name, output_image_dir, None,
+        visualize_prediction(best_mask, cropped_vhist_mask_true, dont_care_mask, cropped_vhist, dice, image_name, output_image_dir,
                              prompts, ext="vhist_pred")
-        visualize_prediction(best_mask, epidermis_mask, cropped_oct_image, dice, image_name, output_image_dir, None,
+        visualize_prediction(best_mask, cropped_vhist_mask_true, dont_care_mask,cropped_oct_image, dice, image_name, output_image_dir,
                              prompts, ext="vhist_pred_over_oct")
 
 
@@ -249,17 +248,19 @@ def main(args):
         # else:
         oct_data = dataset.df[dataset.df.img_filename == oct_fname]
         epidermis_data = oct_data[oct_data.cat_name == "epidermis"].ann_segmentation.values[0][0]
+        epidermis_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], epidermis_data)
         if 'hair' in oct_data.cat_name.unique():
             dont_care_data = oct_data[oct_data.cat_name == "hair"].ann_segmentation.values[0][0]
             dont_care_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], dont_care_data)
+            epidermis_mask = epidermis_mask & (~dont_care_mask)
         else:
             dont_care_mask = None
-        epidermis_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], epidermis_data)
+
 
         if visualize_input_gt:
             plt.figure(figsize=(5, 5))
             plt.imshow(roboflow_next_img)
-            show_mask(epidermis_mask, plt.gca(), alpha=0.3)
+            show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.GT)
             plt.axis('off')
             plt.suptitle(f"Input oct and ground truth mask")
             plt.title(f"{image_name}")
@@ -329,14 +330,16 @@ def handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_i
         file.write(str_to_save)
 
 
-def visualize_prediction(best_mask, cropped_histology_gt, cropped_oct_image, dice, image_name, output_image_dir,
-                         save_diff_image, prompts, ext, nice=False):
+def visualize_prediction(best_mask, epidermis_mask, dont_care_mask, cropped_oct_image, dice, image_name, output_image_dir,
+                         prompts, ext):
     plt.figure(figsize=(5, 5))
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
     plt.imshow(cropped_oct_image)
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
-    c1 = show_mask(best_mask, plt.gca())
-    c2 = show_mask(cropped_histology_gt, plt.gca(), secondcolor=True, outline=True)
+    c1 = show_mask(best_mask, plt.gca(), color_arr= COLORS.GT)
+    c2 = show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.EPIDERMIS, outline=True)
+    if dont_care_mask is not None:
+        c3 = show_mask(dont_care_mask, plt.gca(), color_arr=COLORS.DONT_CARE)
     # c2 = show_mask(cropped_histology_gt, plt.gca(), random_color=True, alpha=0.2)
     plt.axis('off')
     # plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}")

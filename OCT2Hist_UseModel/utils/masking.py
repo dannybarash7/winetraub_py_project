@@ -334,10 +334,9 @@ def apply_closing_operation(mask):
   return binary_result
 
 
-def show_mask(mask, ax, secondcolor=False, alpha = 0.6, outline = False):
-
+def show_mask(mask, ax, color_arr, outline = False):
+    color_np  = np.array(color_arr)
     if outline:
-      alpha = 1.0
       mask_8bit = mask.astype(np.uint8)
       contours, _ = cv2.findContours(mask_8bit.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
       # Create an empty image for visualization
@@ -345,15 +344,10 @@ def show_mask(mask, ax, secondcolor=False, alpha = 0.6, outline = False):
       # Draw the contours on the empty image
       cv2.drawContours(outline_image, contours, -1, (255), thickness=4)
       mask = outline_image.astype(np.bool_)
-    if secondcolor:
-        # color = np.concatenate([np.random.random(3), np.array([alpha])], axis=0)
-        color = np.array([8 / 255, 255 / 255, 128 / 255, alpha])
-    else:
-        color = np.array([0 / 255, 128 / 255, 255 / 255, alpha])
     h, w = mask.shape[-2:]
-    mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
+    mask_image = mask.reshape(h, w, 1) * color_np.reshape(1, 1, -1)
     ax.imshow(mask_image)
-    return color
+    return color_np
 
 if __name__ == '__main__':
   o2h_input = oct_get_image_and_preprocess("/Users/dannybarash/Code/oct/OCT2Hist_UseModel/baseline_input.tiff")
