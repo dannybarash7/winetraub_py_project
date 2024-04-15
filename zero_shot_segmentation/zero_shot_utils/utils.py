@@ -1,12 +1,11 @@
 from copy import deepcopy
 
-import numpy
 import numpy as np
-import torch
 import matplotlib.pyplot as plt
 import cv2
 from dataclasses import dataclass
-from typing import List, Tuple, Union, Optional
+from typing import List, Tuple, Optional
+
 from dataclasses_json import dataclass_json
 import supervision as sv
 from supervision import Detections
@@ -117,7 +116,7 @@ class COCOJson:
 def init_sam(model_type,sam_checkpoint ):
     import sys
     sys.path.append("..")
-    from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
+    from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
     device = "cuda"
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
     sam.to(device=device)
@@ -191,22 +190,10 @@ def get_roboflow_data(dir):
     print(ANNOTATIONS_FILE_PATH)
 
 
-def visualize_sam_masking():
-    boolean_masks = [
-        masks2['segmentation']
-        for masks2
-        in sorted(masks2, key=lambda x: x['area'], reverse=True)
-    ]
-
-    sv.plot_images_grid(
-        images=boolean_masks,
-        grid_size=(len(masks), int(len(boolean_masks) / 4)),
-        size=(16, 16)
-    )
 def sam_masking(inject_real_histology_and_segmentation = False):
     import sys
     sys.path.append("..")
-    from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
+    from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 
     device = "cuda"
 
@@ -304,3 +291,53 @@ def pad(image):
         padded_image = np.pad(image, ((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)), mode='constant')
 
     return padded_image
+
+
+def calculate_iou(mask_true, mask_pred, class_id, dont_care_mask):
+    # intersection = np.logical_and(mask_true == class_id, mask_pred == class_id)
+    if dont_care_mask is not None:
+        mask_pred[dont_care_mask] = mask_true[dont_care_mask]
+    intersection = np.logical_and(mask_true, (mask_pred == class_id))
+    union = np.logical_or(mask_true, mask_pred == class_id)
+    true_count_gt = np.sum(mask_true)
+    true_count_pred = np.sum(mask_pred)
+    true_count_intersection = np.sum(intersection)
+    iou = true_count_intersection / np.sum(union)
+    dice = 2 * true_count_intersection / (true_count_gt + true_count_pred)
+    return iou, dice
+
+
+def calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id, dont_care_mask):
+    max_dice, max_iou = -1.0, -1.0
+    best_mask = None
+    for mask_pred in mask_predictions:
+        iou, dice = calculate_iou(mask_true, mask_pred, class_id, dont_care_mask)
+        if dice > max_dice:
+            max_iou = iou
+            max_dice = dice
+            best_mask = mask_pred
+    return max_iou, max_dice, best_mask
+
+
+def single_or_multiple_predictions(mask_true, mask_predictions, class_id, dont_care_mask):
+    if isinstance(mask_predictions, list):
+        return calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id, dont_care_mask)
+    else:
+        return calculate_iou(mask_true, mask_predictions, class_id, dont_care_mask)
+
+
+def make_mask_drawable(mask):
+    mask = mask.astype(np.uint8)
+    mask[mask == 1] = 255
+    return mask
+
+
+def extract_filename_prefix(filename):
+    # Split the filename based on the dot ('.') and take the first part
+    prefix = filename.split('.')[0]
+
+    # Remove the "_jpg" part if it exists
+    if prefix.endswith('_jpg'):
+        prefix = prefix[:-4]
+
+    return prefix

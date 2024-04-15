@@ -6,9 +6,8 @@ import numpy as np
 
 from OCT2Hist_UseModel.utils.crop import crop_oct_for_pix2pix, crop
 from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale
-from OCT2Hist_UseModel.utils.masking import get_sam_input_points, show_points, show_mask, mask_gel_and_low_signal
+from OCT2Hist_UseModel.utils.masking import mask_gel_and_low_signal
 from OCT2Hist_UseModel import oct2hist
-from zero_shot_segmentation.zero_shot_utils import utils
 from zero_shot_segmentation.zero_shot_utils.run_sam_gui import run_gui_segmentation
 
 def warp_image(source_image, source_points, target_points):

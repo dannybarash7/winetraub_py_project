@@ -29,13 +29,6 @@ import matplotlib.pyplot as plt
 sys.path.append('./OCT2Hist_UseModel')
 import os
 
-
-# Define the Roboflow project URL and API key
-rf_api_key= "R04BinsZcBZ6PsfKR2fP"
-rf_workspace= "yolab-kmmfx"
-rf_project_name = "11-16-2023-zero-shot-oct"
-rf_dataset_type = "coco-segmentation" #"png-mask-semantic"
-version = 3
 #roboflow semantic classes
 DERMIS = 1
 EPIDERMIS = 2
