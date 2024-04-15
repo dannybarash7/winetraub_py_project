@@ -51,9 +51,10 @@ create_virtual_histology = True
 is_input_always_oct = True
 continue_for_existing_images = False
 segment_real_histology = False
+#None or filename
+single_image_to_segment =  None
 
 # paths
-single_image_to_segment =  "LG-44-Slide06_Section01_yp0_A"  #
 sam_path = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/images/box_prediction_with_vhist_nice/iou_scores.csv"
 medsam_path = "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/images/box_prediction_with_vhist_nice/iou_scores.csv"
 sammed2d_path = "/Users/dannybarash/Code/oct/medsam/sam-med2d/images/box_prediction_with_vhist_nice/iou_scores.csv"
@@ -249,7 +250,7 @@ def main(args):
         oct_data = dataset.df[dataset.df.img_filename == oct_fname]
         epidermis_data = oct_data[oct_data.cat_name == "epidermis"].ann_segmentation.values[0][0]
         epidermis_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], epidermis_data)
-        if 'hair' in oct_data.cat_name.unique():
+        if False:#'hair' in oct_data.cat_name.unique():
             dont_care_data = oct_data[oct_data.cat_name == "hair"].ann_segmentation.values[0][0]
             dont_care_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], dont_care_data)
             epidermis_mask = epidermis_mask & (~dont_care_mask)
