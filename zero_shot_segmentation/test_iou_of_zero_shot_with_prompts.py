@@ -30,12 +30,12 @@ from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask
 from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
+sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
 from zero_shot_segmentation.zero_shot_utils.predict_mask_on_oct_interactive import predict
 from zero_shot_segmentation.zero_shot_utils.utils import single_or_multiple_predictions, extract_filename_prefix, \
     bounding_rectangle
 
 sys.path.append('./OCT2Hist_UseModel')
-sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
 sys.path.append('./zero_shot_segmentation')
 
 # Define the Roboflow project URL and API key
@@ -90,7 +90,7 @@ def segment_histology(image_path, epidermis_mask, image_name, dont_care_mask):
                                                                                   EPIDERMIS,
                                                                                   dont_care_mask=dont_care_mask)
         df.loc[image_name, "iou_hist"] = epidermis_iou_real_hist
-        df.loc[image_name, "dice_hist"] = dice
+        df.loc[image_name, "dice_histology"] = dice
         df.loc[image_name, "nclicks_hist"] = n_points_used
         print(f"real histology iou: {epidermis_iou_real_hist}.")
         print(f"real histology dice: {dice}.")
@@ -221,10 +221,10 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask):
         visualize_prediction(best_mask, cropped_vhist_mask_true, dont_care_mask,cropped_oct_image, dice, image_name, output_image_dir,
                              prompts, ext="vhist_pred_over_oct")
 
-def check_column_na(oct_fname, domain_dice_str ): #domain_dice_str = "dice_oct" | "dice_vhist" | "dice_histology"
+def check_column_exists(oct_fname, domain_dice_str): #domain_dice_str = "dice_oct" | "dice_vhist" | "dice_histology"
     sample_name = extract_filename_prefix(oct_fname)
     row = df.loc[sample_name]
-    return pandas.isna(row[domain_dice_str])
+    return domain_dice_str in row.index and not pandas.isna(row[domain_dice_str])
 
 def main(args):
     global roboflow_next_img, df, output_image_dir, total_dice_oct, total_dice_vhist, total_iou_oct, total_iou_vhist, \
@@ -284,13 +284,6 @@ def main(args):
         if single_image_to_segment is not None and not extract_filename_prefix(oct_fname).startswith(
                 single_image_to_segment):
             continue
-
-        # print("Skipping to LHC-31-Slide03_Section03_yp0_A... ")
-        is_real_histology = oct_fname.find("_B_") != -1 or oct_fname.find("histology") != -1
-        is_oct = oct_fname.find("oct") != -1
-        is_virtual_histology = oct_fname.find("vhist") != -1
-        # if not is_virtual_histology:
-        #     continue
         i += 1
         image_name = extract_filename_prefix(oct_fname)
         print(f"\nimage number {i}: {image_name}")
@@ -316,27 +309,23 @@ def main(args):
             plt.title(f"{image_name}")
             plt.savefig(f'{os.path.join(output_image_dir, image_name)}_input_gt.png')
             plt.close('all')
-        if is_oct:
-            if continue_for_existing_images:
-                if check_column_na(oct_fname, "dice_oct"):
-                    continue
+        skip_oct = continue_for_existing_images and check_column_exists(oct_fname, "dice_oct")
+        if not skip_oct:
             segment_oct(image_path, epidermis_mask, image_name, dont_care_mask)
             total_samples_oct += 1
-            if segment_real_hist:
-                if continue_for_existing_images:
-                    if check_column_na(oct_fname, "dice_histology"):
-                        continue
+        if segment_real_hist:
+            skip_hist = continue_for_existing_images and check_column_exists(oct_fname, "dice_histology")
+            if not skip_hist:
                 file_name = image_name[:-1] + "B.jpg"
                 image_path = os.path.join(raw_oct_dataset_dir, file_name)
                 # histology segmentation
                 segment_histology(image_path, epidermis_mask, image_name, dont_care_mask)
                 total_samples_histology += 1
-        if is_virtual_histology or create_virtual_histology:
-            if continue_for_existing_images:
-                if check_column_na(oct_fname, "dice_vhist"):
-                    continue
-            segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask)
-            total_samples_vhist += 1
+        if create_virtual_histology:
+            skip_vhist = continue_for_existing_images and check_column_exists(oct_fname, "dice_vhist")
+            if not skip_vhist:
+                segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask)
+                total_samples_vhist += 1
         df.to_csv(os.path.join(output_image_dir, 'iou_scores.csv'), index=True)
     handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
                  total_samples_oct, total_samples_vhist, total_samples_histology)
@@ -359,11 +348,6 @@ def handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_d
     average_dice_histology = total_dice_histology[EPIDERMIS] / total_samples_histology
     print(f"Average dice with real histology: {average_dice_histology}")
     from scipy.stats import ttest_ind
-    # df["dice_hist"].values
-    # df["dice_vhist"].values
-    # Generate two random arrays of floats
-    # array1 = np.random.rand(100)
-    # array2 = np.random.rand(100)
     array1 = df["dice_oct"].values
     array2 = df["dice_vhist"].values
     # Perform a two-sample t-test
