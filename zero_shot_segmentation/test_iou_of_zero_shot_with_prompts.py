@@ -50,7 +50,7 @@ visualize_input_vhist = True
 
 create_virtual_histology = True
 segment_real_hist = True
-continue_for_existing_images = True
+continue_for_existing_images =False
 #None or filename
 single_image_to_segment =  None
 
@@ -322,9 +322,9 @@ def main(args):
             skip_hist = continue_for_existing_images and check_column_exists(oct_fname, "dice_histology")
             if not skip_hist:
                 file_name = image_name[:-1] + "B.jpg"
-                image_path = os.path.join(raw_oct_dataset_dir, file_name)
+                image_path_hist = os.path.join(raw_oct_dataset_dir, file_name)
                 # histology segmentation
-                segment_histology(image_path, epidermis_mask, image_name, dont_care_mask)
+                segment_histology(image_path_hist, epidermis_mask, image_name, dont_care_mask)
                 total_samples_histology += 1
             else:
                 print(f"skipping histology segmentation for image {image_name}")

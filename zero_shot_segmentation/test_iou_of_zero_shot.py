@@ -59,12 +59,12 @@ def coco_mask_to_numpy(image_shape, coco_mask):
     return numpy_mask
 
 # Function to download images and masks from Roboflow
-def download_images_and_masks(api_key, workspace, project_name, dataset_name, version):
-    from roboflow import Roboflow
-    rf = Roboflow(api_key=api_key)
-    project = rf.workspace(workspace).project(project_name)
-    dataset = project.rf_dataset_version(version).download(rf_dataset_type, overwrite = False)
-    return dataset
+# def download_images_and_masks(api_key, workspace, project_name, dataset_name, version):
+#     from roboflow import Roboflow
+#     rf = Roboflow(api_key=api_key)
+#     project = rf.workspace(workspace).project(project_name)
+#     dataset = project.rf_dataset_version(version).download(rf_dataset_type, overwrite = False)
+#     return dataset
 
 
 # Function to calculate Intersection over Union (IoU)
