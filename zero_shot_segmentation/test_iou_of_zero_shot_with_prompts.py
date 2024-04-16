@@ -50,7 +50,7 @@ visualize_input_vhist = True
 
 create_virtual_histology = True
 segment_real_hist = True
-continue_for_existing_images =False
+continue_for_existing_images =True
 #None or filename
 single_image_to_segment =  None
 
