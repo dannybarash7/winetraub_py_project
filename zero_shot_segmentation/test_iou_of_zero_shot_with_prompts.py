@@ -54,10 +54,7 @@ continue_for_existing_images =True
 #None or filename
 single_image_to_segment =  None
 
-# paths
-sam_path = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam/images/box_prediction_with_vhist_nice/iou_scores.csv"
-medsam_path = "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/images/box_prediction_with_vhist_nice/iou_scores.csv"
-sammed2d_path = "/Users/dannybarash/Code/oct/medsam/sam-med2d/images/box_prediction_with_vhist_nice/iou_scores.csv"
+
 roboflow_annot_dataset_dir = os.path.join(os.getcwd(), f"./paper_data-{version}/test")
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
 
@@ -246,31 +243,16 @@ def main(args):
     path_to_annotations = os.path.join(roboflow_annot_dataset_dir, "_annotations.coco.json")
     from pylabel import importer
     dataset = importer.ImportCoco(path_to_annotations, path_to_images=roboflow_annot_dataset_dir, name="zero_shot_oct")
+    csv_path = os.path.join(args.output_dir, "iou_scores.csv")
+    csv_exists = os.path.exists(csv_path)
+    if csv_exists:
+        shutil.copyfile(csv_path, csv_path + ".previous")
 
-    if SAM:
-        csv_exists = os.path.exists(sam_path)
-        if csv_exists:
-            shutil.copyfile(sam_path, sam_path+".previous")
-    if MEDSAM:
-        csv_exists = os.path.exists(medsam_path)
-        if csv_exists:
-            shutil.copyfile(sam_path, medsam_path + ".previous")
-    if SAMMED_2D:
-        csv_exists = os.path.exists(sammed2d_path)
-        if csv_exists:
-            shutil.copyfile(sam_path, sammed2d_path + ".previous")
     if continue_for_existing_images and csv_exists:
-        if SAM:
-            df = pd.read_csv(sam_path, index_col='Unnamed: 0')
-        if MEDSAM:
-            df = pd.read_csv(medsam_path, index_col='Unnamed: 0')
-        if SAMMED_2D:
-            df = pd.read_csv(sammed2d_path, index_col='Unnamed: 0')
+        df = pd.read_csv(csv_path, index_col='Unnamed: 0')
     else:
         index_array = [extract_filename_prefix(file) for file in image_files]
         df = pd.DataFrame({"iou_vhist": numpy.nan, "iou_oct": numpy.nan,"iou_histology": numpy.nan,
-                           # Replace with your data for "iou oct"
-                           # Replace with your data for "iou oct"
                            "dice_oct": numpy.nan, "dice_vhist": numpy.nan,
                            "dice_histology": numpy.nan, }, index=index_array)
 
