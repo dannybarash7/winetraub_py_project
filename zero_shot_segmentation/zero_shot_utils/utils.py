@@ -256,6 +256,24 @@ def remove_fill(matrix):
     # Perform flood-fill starting from the specified coordinates
     flood_fill(start_row, start_col)
     return output
+
+def expand_bounding_rectangle(array, rect_shape):
+    """
+        :param array: x1,y1,x2,y2 coordinates
+        :param rect_shape: img shape (height, width) which bounds the enlarged rectangle.
+        :returns: 2x bbox bounded by rect_shape
+    """
+    x1,y1,x2,y2 = array
+    width = x2-x1
+    height = y2 - y1
+    center = (x1 + x2) / 2, (y1 + y2) / 2
+    next_x1 = max(0,center[0]-width)
+    next_x2 = min(rect_shape[1], center[0] + width)
+    next_y1 = max(0, center[1] - height)
+    next_y2 = min(rect_shape[0], center[1] + height)
+    return np.array([next_x1,next_y1,next_x2,next_y2])
+
+
 def bounding_rectangle(array):
     rows, cols = np.any(array, axis=1), np.any(array, axis=0)
     y1, y2 = np.where(rows)[0][[0, -1]]

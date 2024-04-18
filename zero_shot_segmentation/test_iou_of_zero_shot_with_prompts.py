@@ -30,6 +30,7 @@ from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask
 from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
+
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
 from zero_shot_segmentation.zero_shot_utils.predict_mask_on_oct_interactive import predict
 from zero_shot_segmentation.zero_shot_utils.utils import single_or_multiple_predictions, extract_filename_prefix, \
@@ -299,7 +300,7 @@ def main(args):
             segment_oct(image_path, epidermis_mask, image_name, dont_care_mask)
             total_samples_oct += 1
         else:
-            print(f"skipping oct segmentation for image {image_name}")
+            print(f"skipping oct segmentation")
         if segment_real_hist:
             skip_hist = continue_for_existing_images and check_column_exists(oct_fname, "dice_histology")
             if not skip_hist:
@@ -309,14 +310,14 @@ def main(args):
                 segment_histology(image_path_hist, epidermis_mask, image_name, dont_care_mask)
                 total_samples_histology += 1
             else:
-                print(f"skipping histology segmentation for image {image_name}")
+                print(f"skipping histology segmentation")
         if create_virtual_histology:
             skip_vhist = continue_for_existing_images and check_column_exists(oct_fname, "dice_vhist")
             if not skip_vhist:
                 segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask)
                 total_samples_vhist += 1
             else:
-                print(f"skipping virtual histology segmentation for image {image_name}")
+                print(f"skipping virtual histology segmentation")
         df.to_csv(os.path.join(output_image_dir, 'iou_scores.csv'), index=True)
     handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
                  total_samples_oct, total_samples_vhist, total_samples_histology)
@@ -414,6 +415,8 @@ if __name__ == "__main__":
     group.add_argument("--box", action="store_true", help="Specify a box.")
     group.add_argument("--grid", action="store_true", help="Specify a grid.")
     args = parser.parse_args()
+    if MEDSAM and args.point:
+        raise Exception("MedSam does not support points")
     if not args.point and not args.box and not args.grid:
         print("Please specify one of --point, --box, or --grid.")
     elif not args.output_dir:
