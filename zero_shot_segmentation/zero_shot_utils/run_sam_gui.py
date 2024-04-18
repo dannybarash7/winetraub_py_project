@@ -10,7 +10,8 @@ import torch.nn.functional as F
 
 from OCT2Hist_UseModel.utils.masking import apply_closing_operation
 from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM
-from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass
+from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass, \
+    expand_bounding_rectangle
 import sys
 sys.path.append("./OCT2Hist_UseModel/")
 
@@ -383,11 +384,11 @@ class Segmenter():
             gt_bbox = bounding_rectangle(self.gt_mask)
             com = get_center_of_mass(self.gt_mask)
             #Note: all points returning from argwhere are in [y,x] (row,column) format.
-            twoX_gt_bbox = expand_bounding_rectangle(gt_bbox)
+            twoX_gt_bbox = expand_bounding_rectangle(gt_bbox, self.img.shape[:2])
+            #all background points
             neg_points = np.argwhere(~self.gt_mask)
-            #taking negative (background) points in the bounding box of the gt mask
-            neg_points_in_gt_bbox = self.points_in_rectangle(neg_points, gt_bbox)
-            # Get the number of rows in the array
+            #filter negative (background) points in the bounding box of 2x box
+            neg_points_in_gt_bbox = self.points_in_rectangle(neg_points, twoX_gt_bbox)
             remove_pts = self.sample_points(neg_points_in_gt_bbox)
             pos_points = np.argwhere(self.gt_mask)
             # pos_points_in_gt_bbox = self.points_in_rectangle(pos_points, user_box)

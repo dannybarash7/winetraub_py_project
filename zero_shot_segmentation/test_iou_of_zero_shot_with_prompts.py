@@ -30,6 +30,7 @@ from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask
 from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
+
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
 from zero_shot_segmentation.zero_shot_utils.predict_mask_on_oct_interactive import predict
 from zero_shot_segmentation.zero_shot_utils.utils import single_or_multiple_predictions, extract_filename_prefix, \
