@@ -1,6 +1,6 @@
 MEDSAM = False
-SAMMED_2D = False
-SAM = True
+SAMMED_2D = True
+SAM = False
 
 rf_api_key = "R04BinsZcBZ6PsfKR2fP"
 rf_workspace = "yolab-kmmfx"
