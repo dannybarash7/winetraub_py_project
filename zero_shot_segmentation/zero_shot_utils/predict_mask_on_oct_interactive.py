@@ -8,6 +8,7 @@ from OCT2Hist_UseModel.utils.crop import crop_oct_for_pix2pix, crop
 from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale
 from OCT2Hist_UseModel.utils.masking import mask_gel_and_low_signal
 from OCT2Hist_UseModel import oct2hist
+from zero_shot_segmentation.consts import DOWNSAMPLE_SAM_INPUT
 from zero_shot_segmentation.zero_shot_utils.run_sam_gui import run_gui_segmentation
 
 def warp_image(source_image, source_points, target_points):
@@ -80,7 +81,7 @@ def is_trapezoid_image(oct_image):
     if top_row_first_non_zero_index > margin or mid_row_first_non_zero_index > margin:
         return True
 
-def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, downsample = False, output_vhist_path = None, prompts = None):
+def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
     warped_mask_true = mask_true
@@ -108,8 +109,29 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
         if output_vhist_path:
             cv2.imwrite(output_vhist_path, virtual_histology_image)
 
-        segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts)
+        if DOWNSAMPLE_SAM_INPUT:
+            virtual_histology_image_copy = virtual_histology_image.copy()
+            cropped_histology_gt_copy = cropped_histology_gt.copy()
+            blurred_image = cv2.GaussianBlur(virtual_histology_image, (0, 0), 4)
+            downsampled_image = cv2.resize(blurred_image, None, fx=0.25, fy=0.25)
 
+            downscaled_img = cv2.resize(cropped_histology_gt.astype('float32'), None, fx=1 / 4,
+                                        fy=1 / 4, interpolation=cv2.INTER_NEAREST)
+
+            # Convert back to boolean image
+            cropped_histology_gt = downscaled_img.astype('bool')
+
+            # downscaled_img = cv2.resize(binary_img, None, fx=1/downscale_factor, fy=1/downscale_factor, interpolation=cv2.INTER_NEAREST)
+            virtual_histology_image = downsampled_image
+
+        segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts)
+        if DOWNSAMPLE_SAM_INPUT:
+            assert(len(segmentation) == 1)
+            segmentation = cv2.resize(segmentation[0].astype('float32'), (0, 0), fx=4, fy=4, interpolation=cv2.INTER_NEAREST)
+            segmentation = [segmentation.astype('bool')]
+            cropped_histology_gt = cropped_histology_gt_copy
+            virtual_histology_image = virtual_histology_image_copy
+            prompts["box"] = prompts["box"] * 4
     else:
         segmentation, points_used, prompts = run_gui_segmentation(cropped_oct, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts)
         virtual_histology_image = None
