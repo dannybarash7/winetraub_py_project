@@ -8,6 +8,7 @@ rf_project_name = "paper_data"
 rf_dataset_type = "coco-segmentation"  # "png-mask-semantic"
 version = 6
 
+NPOINTS_FOR_SEGMENTATION = 10
 
 class COLORS:
     EPIDERMIS = [8 / 255, 255 / 255, 128 / 255, 0.6]

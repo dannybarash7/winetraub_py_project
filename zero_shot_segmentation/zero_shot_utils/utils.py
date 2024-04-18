@@ -256,6 +256,9 @@ def remove_fill(matrix):
     # Perform flood-fill starting from the specified coordinates
     flood_fill(start_row, start_col)
     return output
+
+def expand_bounding_rectangle(array):
+    pass
 def bounding_rectangle(array):
     rows, cols = np.any(array, axis=1), np.any(array, axis=0)
     y1, y2 = np.where(rows)[0][[0, -1]]

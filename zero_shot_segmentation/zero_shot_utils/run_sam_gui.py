@@ -380,12 +380,13 @@ class Segmenter():
         return points[mask]
     def get_mask_for_auto_point(self):
         if self.prompts is None:
-            user_box = bounding_rectangle(self.gt_mask)
+            gt_bbox = bounding_rectangle(self.gt_mask)
             com = get_center_of_mass(self.gt_mask)
             #Note: all points returning from argwhere are in [y,x] (row,column) format.
+            twoX_gt_bbox = expand_bounding_rectangle(gt_bbox)
             neg_points = np.argwhere(~self.gt_mask)
             #taking negative (background) points in the bounding box of the gt mask
-            neg_points_in_gt_bbox = self.points_in_rectangle(neg_points, user_box)
+            neg_points_in_gt_bbox = self.points_in_rectangle(neg_points, gt_bbox)
             # Get the number of rows in the array
             remove_pts = self.sample_points(neg_points_in_gt_bbox)
             pos_points = np.argwhere(self.gt_mask)
