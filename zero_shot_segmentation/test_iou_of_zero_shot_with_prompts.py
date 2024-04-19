@@ -424,7 +424,7 @@ if __name__ == "__main__":
     group.add_argument("--box", action="store_true", help="Specify a box.")
     group.add_argument("--grid", action="store_true", help="Specify a grid.")
     args = parser.parse_args()
-    if "medsam" in os.getcwd() and args.point:
+    if MEDSAM and args.point:
         raise Exception("MedSam does not support points")
     if not args.point and not args.box and not args.grid:
         print("Please specify one of --point, --box, or --grid.")
