@@ -53,8 +53,8 @@ create_virtual_histology = True
 segment_real_hist = True
 continue_for_existing_images =True
 #None or filename
-single_image_to_segment =  None
-
+single_image_to_segment = None
+patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
 
 roboflow_annot_dataset_dir = os.path.join(os.getcwd(), f"./paper_data-{version}/test")
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
@@ -270,6 +270,15 @@ def main(args):
         if single_image_to_segment is not None and not extract_filename_prefix(oct_fname).startswith(
                 single_image_to_segment):
             continue
+        if patient_to_skip is not None:
+            skip_sample = False
+            for patient in patient_to_skip:
+                if extract_filename_prefix(oct_fname).startswith(patient):
+                    skip_sample = True
+                    break
+            if skip_sample:
+                continue
+
         i += 1
         image_name = extract_filename_prefix(oct_fname)
         print(f"\nimage number {i}: {image_name}")
