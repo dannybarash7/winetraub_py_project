@@ -423,8 +423,11 @@ class Segmenter():
                 masks, scores, logits = self.predictor.predict(point_coords=np.array(points_so_far),
                                                                point_labels=np.array(labels_so_far),
                                                                multimask_output=True, mask_input=mask_input)
-                mask_input = logits[np.argmax(scores), :, :]
-                mask_input = mask_input[None, :, :]
+                if SAMMED_2D:
+                    mask_input = torch.sigmoid(torch.as_tensor(logits, dtype=torch.float))
+                else:
+                    mask_input = logits[np.argmax(scores), :, :]
+                    mask_input = mask_input[None, :, :]
         else:
             masks, scores, logits = self.predictor.predict(point_coords=np.concatenate([self.add_pts, self.remove_pts]),
                                                            point_labels=np.array(
