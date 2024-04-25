@@ -25,7 +25,7 @@ if SAMMED_2D:
 segmenter = None
 
 
-def run_gui(img, weights_path, args, gt_mask=None, auto_segmentation=True, prompts=None):
+def run_gui(img, weights_path, args, gt_mask=None, auto_segmentation=True, prompts=None, dont_care_mask = None):
     global segmenter
     if img is None:
         raise Exception("Image file not found.")
@@ -39,7 +39,7 @@ def run_gui(img, weights_path, args, gt_mask=None, auto_segmentation=True, promp
 
     if args.point:
         segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask=gt_mask,
-                              point_prediction_flag=True, npoints=args.npoints, prompts=prompts)
+                              point_prediction_flag=True, npoints=args.npoints, prompts=prompts, dont_care_mask = dont_care_mask)
     elif args.box:
         segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask=gt_mask,
                               box_prediction_flag=True)
@@ -90,7 +90,7 @@ class Segmenter():
 
     def __init__(self, img, weights_path, auto_segmentation, npoints=0, box_prediction_flag=False,
                  point_prediction_flag=False, grid_prediction_flag=False, gt_mask=None, remaining_points=20,
-                 prompts=None):
+                 prompts=None, dont_care_mask = None):
         """
 
         :param img:
@@ -115,6 +115,7 @@ class Segmenter():
         self.grid_prediction_flag = grid_prediction_flag
         self.auto_segmentation = auto_segmentation
         self.gt_mask = gt_mask
+        self.dont_care_mask = dont_care_mask
         self.init_points = npoints
         self.prompts = prompts
 
@@ -387,13 +388,25 @@ class Segmenter():
         mask = (points[:, 1] >= x1) & (points[:, 1] <= x2) & (points[:, 0] >= y1) & (points[:, 0] <= y2)
         return points[mask]
 
+    def find_max_distance_pixel(self,mask):
+        # Convert the boolean mask to an 8-bit type
+        mask = mask.astype(np.uint8) * 255
+
+        # Calculate distance transform
+        distance_transform = cv2.distanceTransform(mask, cv2.DIST_L2, 3)
+
+        # Find the coordinates of the pixel with the maximum distance value
+        max_distance_index = np.unravel_index(np.argmax(distance_transform), distance_transform.shape)
+
+        return max_distance_index
+
     def get_mask_for_auto_point(self):
         if self.prompts is None:
             gt_bbox = bounding_rectangle(self.gt_mask)
             # Note: all points returning from argwhere are in [y,x] (row,column) format.
             twoX_gt_bbox = expand_bounding_rectangle(gt_bbox, self.img.shape[:2])
             # all background points
-            neg_points = np.argwhere(~self.gt_mask)
+            neg_points = np.argwhere(~(self.gt_mask | self.dont_care_mask))
             # filter negative (background) points in the bounding box of 2x box
             neg_points_in_2x_gt_bbox = self.points_in_rectangle(neg_points, twoX_gt_bbox)
             remove_pts = self.sample_points(neg_points_in_2x_gt_bbox)
@@ -402,8 +415,11 @@ class Segmenter():
             # assert len(pos_points_in_gt_bbox) + len(neg_points_in_gt_bbox) == (user_box[2]-user_box[0] ) * (user_box[3]-user_box[1])
             add_pts = self.sample_points(pos_points)
             com = get_center_of_mass(self.gt_mask)
+            max_distance_pixel = self.find_max_distance_pixel(self.gt_mask)
             if self.gt_mask[com[0], com[1]]:  # if center of mass is in forground, overwrite the first point with it
                 add_pts[0] = [com[1], com[0]]  # com is from mat indices, [row,col], while add_pts is [x,y] format.
+
+
         else:
             add_pts = self.prompts["add"]
             remove_pts = self.prompts["remove"]
@@ -571,8 +587,8 @@ class Segmenter():
         return mask
 
 
-def run_gui_segmentation(img, weights_path, gt_mask, args, prompts):
-    segmenter = run_gui(img, weights_path, args, gt_mask, prompts=prompts)
+def run_gui_segmentation(img, weights_path, gt_mask, args, prompts, dont_care_mask):
+    segmenter = run_gui(img, weights_path, args, gt_mask, prompts=prompts, dont_care_mask = dont_care_mask)
     segmenter.global_masks[segmenter.global_masks > 0] = 1
     points_used = segmenter.init_points - segmenter.remaining_points
     # Danny: masks is for all masks, global masks is for the unified fixes

@@ -69,12 +69,12 @@ if SAMMED_2D:
 # roboflow semantic classes
 EPIDERMIS = True  # mask values for epidermis mask are simply True, where the foreground is False.
 
-def segment_histology(image_path, epidermis_mask, image_name, dont_care_mask):
+def segment_histology(image_path, epidermis_mask, image_name, dont_care_mask, prompts):
     global total_iou_histology, total_dice_histology
     print("histology segmentation")
 
     histology_mask, _, epidermis_mask, cropped_histology_image, n_points_used, warped_mask_true, prompts, crop_args = predict(
-        image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=False)
+        image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=False, prompts=prompts)
 
     dont_care_mask = crop(dont_care_mask, **crop_args)
     path = f'{os.path.join(output_image_dir, image_name)}_cropped_histology_image.png'
@@ -133,7 +133,7 @@ def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask):
     global output_image_dir, total_iou_vhist, total_dice_vhist
     print("OCT segmentation")
     oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts, crop_args = predict(
-        image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=False)
+        image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=False, dont_care_mask = dont_care_mask)
 
     crop_args_path = f'{os.path.join(output_image_dir, image_name)}_oct_crop_args.pickle'
     with open(crop_args_path, 'wb') as file:
@@ -160,16 +160,17 @@ def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask):
         if visualize_pred_vs_gt_oct:
             visualize_prediction(best_mask, cropped_histology_gt, dont_care_mask, cropped_oct_image, dice, image_name, output_image_dir,
                                  prompts, ext="oct_pred")
+    return prompts
 
 
-def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask):
+def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts):
     global output_image_dir, total_iou_vhist, total_dice_vhist
     # v. histology segmentation
     print("virtual histology segmentation")
     path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
     cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts, crop_args = predict(
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=create_virtual_histology,
-        output_vhist_path=path)
+        output_vhist_path=path, prompts = prompts)
     # cropped_vhist_mask_true = crop(warped_vhist_mask_true, **crop_args)
     crop_args_path = f'{os.path.join(output_image_dir, image_name)}_vhist_crop_args.pickle'
     with open(crop_args_path, 'wb') as file:
@@ -219,7 +220,7 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask):
         visualize_prediction(best_mask, cropped_vhist_mask_true, dont_care_mask,cropped_oct_image, dice, image_name, output_image_dir,
                              prompts, ext="vhist_pred_over_oct")
 
-def check_column_exists(oct_fname, domain_dice_str): #domain_dice_str = "dice_oct" | "dice_vhist" | "dice_histology"
+def does_column_exist(oct_fname, domain_dice_str): #domain_dice_str = "dice_oct" | "dice_vhist" | "dice_histology"
     sample_name = extract_filename_prefix(oct_fname)
     row = df.loc[sample_name]
     return domain_dice_str in row.index and not pandas.isna(row[domain_dice_str])
@@ -280,6 +281,7 @@ def main(args):
                 continue
 
         i += 1
+        prompts = None
         image_name = extract_filename_prefix(oct_fname)
         print(f"\nimage number {i}: {image_name}")
         image_path = os.path.join(roboflow_annot_dataset_dir, oct_fname)
@@ -304,26 +306,26 @@ def main(args):
             plt.title(f"{image_name}")
             plt.savefig(f'{os.path.join(output_image_dir, image_name)}_input_gt.png')
             plt.close('all')
-        skip_oct = continue_for_existing_images and check_column_exists(oct_fname, "dice_oct")
+        skip_oct = continue_for_existing_images and does_column_exist(oct_fname, "dice_oct")
         if not skip_oct:
-            segment_oct(image_path, epidermis_mask, image_name, dont_care_mask)
+            prompts = segment_oct(image_path, epidermis_mask, image_name, dont_care_mask)
             total_samples_oct += 1
         else:
             print(f"skipping oct segmentation")
         if segment_real_hist:
-            skip_hist = continue_for_existing_images and check_column_exists(oct_fname, "dice_histology")
+            skip_hist = continue_for_existing_images and does_column_exist(oct_fname, "dice_histology")
             if not skip_hist:
                 file_name = image_name[:-1] + "B.jpg"
                 image_path_hist = os.path.join(raw_oct_dataset_dir, file_name)
                 # histology segmentation
-                segment_histology(image_path_hist, epidermis_mask, image_name, dont_care_mask)
+                segment_histology(image_path_hist, epidermis_mask, image_name, dont_care_mask, prompts)
                 total_samples_histology += 1
             else:
                 print(f"skipping histology segmentation")
         if create_virtual_histology:
-            skip_vhist = continue_for_existing_images and check_column_exists(oct_fname, "dice_vhist")
+            skip_vhist = continue_for_existing_images and does_column_exist(oct_fname, "dice_vhist")
             if not skip_vhist:
-                segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask)
+                segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts)
                 total_samples_vhist += 1
             else:
                 print(f"skipping virtual histology segmentation")

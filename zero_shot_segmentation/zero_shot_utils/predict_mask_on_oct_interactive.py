@@ -81,7 +81,7 @@ def is_trapezoid_image(oct_image):
     if top_row_first_non_zero_index > margin or mid_row_first_non_zero_index > margin:
         return True
 
-def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None):
+def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None, dont_care_mask = None):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
     warped_mask_true = mask_true
@@ -96,6 +96,7 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
     # no need to crop - the current folder contains pre cropped images.
     cropped_oct, crop_args = crop_oct_for_pix2pix(rescaled, y_center)
     cropped_histology_gt = crop(warped_mask_true, **crop_args)
+    cropped_dont_care_mask = crop(dont_care_mask, **crop_args)
 
     if create_vhist:
 
@@ -124,7 +125,7 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
             # downscaled_img = cv2.resize(binary_img, None, fx=1/downscale_factor, fy=1/downscale_factor, interpolation=cv2.INTER_NEAREST)
             virtual_histology_image = downsampled_image
 
-        segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts)
+        segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
         if DOWNSAMPLE_SAM_INPUT:
             assert(len(segmentation) == 1)
             segmentation = cv2.resize(segmentation[0].astype('float32'), (0, 0), fx=4, fy=4, interpolation=cv2.INTER_NEAREST)
@@ -133,7 +134,7 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
             virtual_histology_image = virtual_histology_image_copy
             prompts["box"] = prompts["box"] * 4
     else:
-        segmentation, points_used, prompts = run_gui_segmentation(cropped_oct, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts)
+        segmentation, points_used, prompts = run_gui_segmentation(cropped_oct, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
         virtual_histology_image = None
     # bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
     return segmentation, virtual_histology_image, cropped_histology_gt, cropped_oct, points_used, warped_mask_true, prompts, crop_args
