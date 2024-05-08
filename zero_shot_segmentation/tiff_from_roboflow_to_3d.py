@@ -28,7 +28,7 @@ from tqdm import tqdm
 
 from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask
-from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS
+from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS, ANNOTATED_DATA
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
 
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
@@ -43,11 +43,13 @@ sys.path.append('./zero_shot_segmentation')
 
 # Flags
 visualize_input_gt = False
+annotated_data = ANNOTATED_DATA
+
 # visualize_input_hist = False
 visualize_pred_vs_gt_vhist = False
-visualize_pred_vs_gt_oct = True
-visualize_pred_over_vhist = True
-visualize_input_vhist = True
+visualize_pred_vs_gt_oct = False
+visualize_pred_over_vhist = False
+visualize_input_vhist = False
 
 create_virtual_histology = True
 segment_real_hist = False
@@ -55,8 +57,8 @@ continue_for_existing_images =False
 #None or filename
 single_image_to_segment = None
 patient_to_skip = None# ["LG-63", "LG-73", "LHC-36"]
-
-roboflow_annot_dataset_dir = os.path.join(os.getcwd(), f"lg-44-{version}/test")
+#/Users/dannybarash/Code/oct/paper_code/3d_segmentation/rescaled_images/frame_0020_cropped_oct_image.png
+roboflow_annot_dataset_dir = os.path.join("/Users/dannybarash/Code/oct/paper_code/3d_segmentation/rescaled_images/")
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
 
 if MEDSAM:
@@ -229,9 +231,9 @@ def main(args):
     global roboflow_next_img, df, output_image_dir, total_dice_oct, total_dice_vhist, total_iou_oct, total_iou_vhist, \
         total_iou_histology, total_dice_histology, total_samples_oct, total_samples_vhist, total_samples_histology
 
-    download_images_and_masks()
+    # download_images_and_masks()
     # Get the list of image files
-    image_files = [f for f in os.listdir(roboflow_annot_dataset_dir) if f.endswith(".jpg")]
+    image_files = [f for f in os.listdir(roboflow_annot_dataset_dir) if f.endswith(".png")]
     image_files.sort()
     total_iou_vhist = {EPIDERMIS: 0}  # DERMIS:0 , # IOU for each class
     total_iou_oct = {EPIDERMIS: 0}
@@ -242,9 +244,9 @@ def main(args):
     total_samples_vhist = 0
     total_samples_oct = 0
     total_samples_histology = 0
-    path_to_annotations = os.path.join(roboflow_annot_dataset_dir, "_annotations.coco.json")
-    from pylabel import importer
-    dataset = importer.ImportCoco(path_to_annotations, path_to_images=roboflow_annot_dataset_dir, name="zero_shot_oct")
+    # path_to_annotations = os.path.join(roboflow_annot_dataset_dir, "_annotations.coco.json")
+    # from pylabel import importer
+    # dataset = importer.ImportCoco(path_to_annotations, path_to_images=roboflow_annot_dataset_dir, name="zero_shot_oct")
     csv_path = os.path.join(args.output_dir, "iou_scores.csv")
     csv_exists = os.path.exists(csv_path)
     if csv_exists:
@@ -286,14 +288,18 @@ def main(args):
         print(f"\nimage number {i}: {image_name}")
         image_path = os.path.join(roboflow_annot_dataset_dir, oct_fname)
         roboflow_next_img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-        oct_data = dataset.df[dataset.df.img_filename == oct_fname]
-        epidermis_data = oct_data[oct_data.cat_name == "epidermis"].ann_segmentation.values[0][0]
-        epidermis_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], epidermis_data)
-        if 'hair' in oct_data.cat_name.unique():
-            dont_care_data = oct_data[oct_data.cat_name == "hair"].ann_segmentation.values[0][0]
-            dont_care_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], dont_care_data)
-            epidermis_mask = epidermis_mask & (~dont_care_mask)
+        if annotated_data:
+            oct_data = dataset.df[dataset.df.img_filename == oct_fname]
+            epidermis_data = oct_data[oct_data.cat_name == "epidermis"].ann_segmentation.values[0][0]
+            epidermis_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], epidermis_data)
+            if 'hair' in oct_data.cat_name.unique():
+                dont_care_data = oct_data[oct_data.cat_name == "hair"].ann_segmentation.values[0][0]
+                dont_care_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], dont_care_data)
+                epidermis_mask = epidermis_mask & (~dont_care_mask)
+            else:
+                dont_care_mask = None
         else:
+            epidermis_mask = None
             dont_care_mask = None
 
 
