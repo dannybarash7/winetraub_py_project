@@ -1,18 +1,20 @@
-from matplotlib import pyplot as plt
+import os
+import sys
+
 import cv2
 import matplotlib as mpl
-import torch
-import os
-from matplotlib.patches import Circle
 import numpy as np
-from skimage import transform
+import torch
 import torch.nn.functional as F
+from matplotlib import pyplot as plt
+from matplotlib.patches import Circle
+from skimage import transform
 
 from OCT2Hist_UseModel.utils.masking import apply_closing_operation
-from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM
+from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, INTERACTIVE_POINT_PREDICTION
 from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass, \
     expand_bounding_rectangle
-import sys
+
 sys.path.append("./OCT2Hist_UseModel/")
 
 if SAM or MEDSAM:
@@ -21,7 +23,9 @@ if SAMMED_2D:
     from SAM_Med2D.segment_anything import sam_model_registry as sammed_model_registry
     from SAM_Med2D.segment_anything.predictor_sammed import SammedPredictor
 segmenter = None
-def run_gui(img, weights_path, args, gt_mask = None, auto_segmentation= True, prompts = None):
+
+
+def run_gui(img, weights_path, args, gt_mask=None, auto_segmentation=True, prompts=None, dont_care_mask = None):
     global segmenter
     if img is None:
         raise Exception("Image file not found.")
@@ -34,9 +38,11 @@ def run_gui(img, weights_path, args, gt_mask = None, auto_segmentation= True, pr
         img = np.repeat(img[:, :, np.newaxis], 3, axis=2)
 
     if args.point:
-        segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask, point_prediction_flag=True, npoints = args.npoints, prompts = prompts)
+        segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask=gt_mask,
+                              point_prediction_flag=True, npoints=args.npoints, prompts=prompts, dont_care_mask = dont_care_mask)
     elif args.box:
-        segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask = gt_mask, box_prediction_flag=True)
+        segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask=gt_mask,
+                              box_prediction_flag=True)
     elif args.grid:
         segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask=gt_mask,
                               grid_prediction_flag=True)
@@ -79,11 +85,12 @@ def get_point_grid():
     return points_list
 
 
-
 class Segmenter():
     _predictor = None
 
-    def __init__(self, img, weights_path,  auto_segmentation, npoints = 0, box_prediction_flag=False, point_prediction_flag = False, grid_prediction_flag = False, gt_mask = None, remaining_points = 20, prompts = None):
+    def __init__(self, img, weights_path, auto_segmentation, npoints=0, box_prediction_flag=False,
+                 point_prediction_flag=False, grid_prediction_flag=False, gt_mask=None, remaining_points=20,
+                 prompts=None, dont_care_mask = None):
         """
 
         :param img:
@@ -108,10 +115,11 @@ class Segmenter():
         self.grid_prediction_flag = grid_prediction_flag
         self.auto_segmentation = auto_segmentation
         self.gt_mask = gt_mask
+        self.dont_care_mask = dont_care_mask
         self.init_points = npoints
         self.prompts = prompts
 
-        if Segmenter._predictor is None: #init predictor
+        if Segmenter._predictor is None:  # init predictor
             if SAMMED_2D:
                 from argparse import Namespace
                 args = Namespace()
@@ -119,7 +127,7 @@ class Segmenter():
                 args.encoder_adapter = True
                 args.sam_checkpoint = "/Users/dannybarash/Code/oct/medsam/sam-med2d/OCT2Hist_UseModel/SAM_Med2D/pretrain_model/sam-med2d_b.pth"
                 model = sammed_model_registry["vit_b"](args)
-                self.sam = model# sam_model_registry["vit_h"](checkpoint=weights_path)
+                self.sam = model  # sam_model_registry["vit_h"](checkpoint=weights_path)
             if MEDSAM:
                 self.sam = sam_model_registry["vit_b"](checkpoint=weights_path)
             if SAM:
@@ -158,7 +166,7 @@ class Segmenter():
                 # )
             # save for later
             Segmenter._predictor = self.predictor
-        else: #predictor saved from previous calls
+        else:  # predictor saved from previous calls
             self.predictor = Segmenter._predictor
 
         if not grid_prediction_flag:
@@ -221,8 +229,8 @@ class Segmenter():
 
     def _on_key(self, event):
         if event.key == 'z':
-            if self.remaining_points<self.init_points:
-                self.remaining_points+=1
+            if self.remaining_points < self.init_points:
+                self.remaining_points += 1
                 self.fig.suptitle(f'Segment Anything GUI: {self.remaining_points} points remain', fontsize=16)
             self.undo()
 
@@ -271,7 +279,6 @@ class Segmenter():
 
         self.get_mask()
 
-
     def show_points(self, plot, xs, ys):
         plot.set_data(xs, ys)
         self.fig.canvas.draw()
@@ -319,7 +326,7 @@ class Segmenter():
     @torch.no_grad()
     def medsam_inference(self, img, box):
         H, W, _ = img.shape
-        img_embed , box_1024= self.transform_img(img, box)
+        img_embed, box_1024 = self.transform_img(img, box)
         medsam_model = self.predictor.model
         box_torch = torch.as_tensor(box_1024, dtype=torch.float, device=img_embed.device)
         if len(box_torch.shape) == 2:
@@ -348,6 +355,7 @@ class Segmenter():
         low_res_pred = low_res_pred.squeeze().cpu().numpy()  # (256, 256)
         medsam_seg = (low_res_pred > 0.5).astype(np.uint8)
         return medsam_seg
+
     def get_mask_for_auto_rect(self):
         self.user_box = bounding_rectangle(self.gt_mask)
         if self.gt_mask is None:
@@ -379,46 +387,81 @@ class Segmenter():
         x1, y1, x2, y2 = user_box
         mask = (points[:, 1] >= x1) & (points[:, 1] <= x2) & (points[:, 0] >= y1) & (points[:, 0] <= y2)
         return points[mask]
+
+    def find_max_distance_pixel(self,mask):
+        # Convert the boolean mask to an 8-bit type
+        mask = mask.astype(np.uint8) * 255
+
+        # Calculate distance transform
+        distance_transform = cv2.distanceTransform(mask, cv2.DIST_L2, 3)
+
+        # Find the coordinates of the pixel with the maximum distance value
+        max_distance_index = np.unravel_index(np.argmax(distance_transform), distance_transform.shape)
+
+        return max_distance_index
+
     def get_mask_for_auto_point(self):
         if self.prompts is None:
             gt_bbox = bounding_rectangle(self.gt_mask)
-            com = get_center_of_mass(self.gt_mask)
-            #Note: all points returning from argwhere are in [y,x] (row,column) format.
+            # Note: all points returning from argwhere are in [y,x] (row,column) format.
             twoX_gt_bbox = expand_bounding_rectangle(gt_bbox, self.img.shape[:2])
-            #all background points
-            neg_points = np.argwhere(~self.gt_mask)
-            #filter negative (background) points in the bounding box of 2x box
-            neg_points_in_gt_bbox = self.points_in_rectangle(neg_points, twoX_gt_bbox)
-            remove_pts = self.sample_points(neg_points_in_gt_bbox)
+            # all background points
+            neg_points = np.argwhere(~(self.gt_mask | self.dont_care_mask))
+            # filter negative (background) points in the bounding box of 2x box
+            neg_points_in_2x_gt_bbox = self.points_in_rectangle(neg_points, twoX_gt_bbox)
+            remove_pts = self.sample_points(neg_points_in_2x_gt_bbox)
             pos_points = np.argwhere(self.gt_mask)
             # pos_points_in_gt_bbox = self.points_in_rectangle(pos_points, user_box)
             # assert len(pos_points_in_gt_bbox) + len(neg_points_in_gt_bbox) == (user_box[2]-user_box[0] ) * (user_box[3]-user_box[1])
             add_pts = self.sample_points(pos_points)
-            if self.gt_mask[com[0], com[1]]: #if center of mass is in forground, overwrite the first point with it
-                add_pts[0] = [com[0], com[1]]
+            com = get_center_of_mass(self.gt_mask)
+            max_distance_pixel = self.find_max_distance_pixel(self.gt_mask)
+            if self.gt_mask[com[0], com[1]]:  # if center of mass is in forground, overwrite the first point with it
+                add_pts[0] = [com[1], com[0]]  # com is from mat indices, [row,col], while add_pts is [x,y] format.
+
+
         else:
             add_pts = self.prompts["add"]
             remove_pts = self.prompts["remove"]
 
         self.add_pts = add_pts
         self.remove_pts = remove_pts
-        mask_inputs = None
+        mask_input = None
 
-        masks, scores, logits = self.predictor.predict(point_coords=np.concatenate([self.add_pts, self.remove_pts]),
-                                                       point_labels=np.array(
-                                                           [1] * len(self.add_pts) + [0] * len(self.remove_pts)),
-                                                       multimask_output=False, mask_input=mask_inputs)
+        if INTERACTIVE_POINT_PREDICTION:  # iterative
+            all_points = np.concatenate([self.add_pts, self.remove_pts])
+            all_labels = np.array([1] * len(self.add_pts) + [0] * len(self.remove_pts))
+            points_so_far = []
+            labels_so_far = []
+            for point, label in zip(all_points, all_labels):
+                points_so_far.append(point)
+                labels_so_far.append(label)
+                masks, scores, logits = self.predictor.predict(point_coords=np.array(points_so_far),
+                                                               point_labels=np.array(labels_so_far),
+                                                               multimask_output=True, mask_input=mask_input)
+                if SAMMED_2D:
+                    mask_input = torch.sigmoid(torch.as_tensor(logits, dtype=torch.float))
+                else:
+                    mask_input = logits[np.argmax(scores), :, :]
+                    mask_input = mask_input[None, :, :]
+        else:
+            masks, scores, logits = self.predictor.predict(point_coords=np.concatenate([self.add_pts, self.remove_pts]),
+                                                           point_labels=np.array(
+                                                               [1] * len(self.add_pts) + [0] * len(self.remove_pts)),
+                                                           multimask_output=False, mask_input=mask_input)
+            return masks
+
         return masks
 
     def sample_points(self, points_in_mask):
         num_rows = points_in_mask.shape[0]
-        random_index = np.random.randint(0, num_rows, size = self.npoints)
+        random_index = np.random.randint(0, num_rows, size=self.npoints)
         points_yx_in_mask = points_in_mask[random_index]
-        points_xy_in_mask = points_yx_in_mask[:,::-1]
+        points_xy_in_mask = points_yx_in_mask[:, ::-1]
         return points_xy_in_mask
 
     def handle_single_mask(self, masks):
-        mask = masks[0,:,:].astype(np.uint8)
+        mask = masks[0, :, :].astype(np.uint8)
         mask[self.global_masks > 0] = 0
         mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
         mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")
@@ -434,10 +477,9 @@ class Segmenter():
         self.mask_plot.set_data(self.mask_data)
         self.fig.canvas.draw()
 
-
-
     def handle_multimask(self, masks):
-        #TODO instead of a for loop, calculate intersection ious and drop the non maximal one.
+        # used in grid based prediction.
+        # TODO instead of a for loop, calculate intersection ious and drop the non maximal one.
         # like in calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id)
         for i, mask in enumerate(masks):
             mask = mask["segmentation"]
@@ -472,8 +514,6 @@ class Segmenter():
             self.handle_multimask(masks)
         else:
             raise Exception("Bad flag combination")
-
-
 
     def undo(self):
         if len(self.trace) == 0:  # undo last mask
@@ -547,24 +587,22 @@ class Segmenter():
         return mask
 
 
-
-
-def run_gui_segmentation(img, weights_path, gt_mask, args, prompts):
-    segmenter = run_gui(img, weights_path, args, gt_mask, prompts = prompts)
-    segmenter.global_masks[segmenter.global_masks>0]=1
+def run_gui_segmentation(img, weights_path, gt_mask, args, prompts, dont_care_mask):
+    segmenter = run_gui(img, weights_path, args, gt_mask, prompts=prompts, dont_care_mask = dont_care_mask)
+    segmenter.global_masks[segmenter.global_masks > 0] = 1
     points_used = segmenter.init_points - segmenter.remaining_points
-    #Danny: masks is for all masks, global masks is for the unified fixes
-    #segmenter.masks holds the predicted mask
-    #in case of point based predictions:
+    # Danny: masks is for all masks, global masks is for the unified fixes
+    # segmenter.masks holds the predicted mask
+    # in case of point based predictions:
     """
             self.add_pts = add_pts
             self.remove_pts = remove_pts
     """
-    #hold the positive and negative points.
-    #in case of rectangle based predictions, self.user_box contains it.
+    # hold the positive and negative points.
+    # in case of rectangle based predictions, self.user_box contains it.
 
     if args.point:
-        prompts = {"add":segmenter.add_pts, "remove":segmenter.remove_pts}
+        prompts = {"add": segmenter.add_pts, "remove": segmenter.remove_pts}
     else:
-        prompts = {"box":segmenter.user_box}
+        prompts = {"box": segmenter.user_box}
     return segmenter.masks, points_used, prompts
