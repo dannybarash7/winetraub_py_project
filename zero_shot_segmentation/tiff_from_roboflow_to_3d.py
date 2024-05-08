@@ -51,9 +51,9 @@ visualize_pred_vs_gt_oct = False
 visualize_pred_over_vhist = False
 visualize_input_vhist = False
 
-create_virtual_histology = True
+create_virtual_histology = False
 segment_real_hist = False
-continue_for_existing_images =False
+continue_for_existing_images =True
 #None or filename
 single_image_to_segment = None
 patient_to_skip = None# ["LG-63", "LG-73", "LHC-36"]
@@ -137,6 +137,10 @@ def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask):
     oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts, crop_args = predict(
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=False, dont_care_mask = dont_care_mask)
 
+    fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_oct.npy'
+    with open(fpath, 'wb+') as f:
+        numpy.save(f,oct_mask[0]) #a = numpy.load(fpath)
+
     crop_args_path = f'{os.path.join(output_image_dir, image_name)}_oct_crop_args.pickle'
     with open(crop_args_path, 'wb') as file:
         pickle.dump(crop_args, file)
@@ -173,6 +177,9 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompt
     cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts, crop_args = predict(
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=create_virtual_histology,
         output_vhist_path=path, prompts = prompts)
+    fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_vhist.npy'
+    with open(fpath, 'wb+') as f:
+        numpy.save(f,cropped_vhist_mask[0]) #a = numpy.load(fpath)
     # cropped_vhist_mask_true = crop(warped_vhist_mask_true, **crop_args)
     crop_args_path = f'{os.path.join(output_image_dir, image_name)}_vhist_crop_args.pickle'
     with open(crop_args_path, 'wb') as file:
@@ -194,6 +201,8 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompt
         print(f"Could not segment {image_path}.")
         return
 
+    if not ANNOTATED_DATA:
+        return
     epidermis_iou_vhist, dice, best_mask = single_or_multiple_predictions(cropped_vhist_mask_true, cropped_vhist_mask,
                                                                           EPIDERMIS, dont_care_mask=dont_care_mask)
     if best_mask is None:
@@ -388,9 +397,6 @@ def visualize_prediction(best_mask, epidermis_mask, dont_care_mask, cropped_oct_
     plt.imshow(cropped_oct_image)
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
     c1 = show_mask(best_mask, plt.gca(), color_arr= COLORS.GT)
-    fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask.npy'
-    with open(fpath, 'wb+') as f:
-        numpy.save(f,best_mask) #a = numpy.load(fpath)
     c2 = show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.EPIDERMIS, outline=True)
     if dont_care_mask is not None:
         c3 = show_mask(dont_care_mask, plt.gca(), color_arr=COLORS.DONT_CARE)

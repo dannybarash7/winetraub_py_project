@@ -361,10 +361,7 @@ class Segmenter():
         if ANNOTATED_DATA:
             self.user_box = bounding_rectangle(self.gt_mask)
         else:
-            self.user_box = CONST_BOX
-        if self.gt_mask is None:
-            print("Missing input to auto rect box prediction")
-            return None
+            self.user_box = np.array(CONST_BOX)
         if MEDSAM:
             masks = self.medsam_inference(self.img, self.user_box)
             masks = np.expand_dims(masks, 0)
