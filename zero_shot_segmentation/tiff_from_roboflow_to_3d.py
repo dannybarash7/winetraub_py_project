@@ -51,7 +51,7 @@ visualize_input_vhist = True
 
 create_virtual_histology = True
 segment_real_hist = False
-continue_for_existing_images =True
+continue_for_existing_images =False
 #None or filename
 single_image_to_segment = None
 patient_to_skip = None# ["LG-63", "LG-73", "LHC-36"]
@@ -330,8 +330,9 @@ def main(args):
             else:
                 print(f"skipping virtual histology segmentation")
         df.to_csv(os.path.join(output_image_dir, 'iou_scores.csv'), index=True)
-    handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
-                 total_samples_oct, total_samples_vhist, total_samples_histology)
+    if total_samples_vhist > 0:
+        handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
+                     total_samples_oct, total_samples_vhist, total_samples_histology)
 
 
 def handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
@@ -381,6 +382,9 @@ def visualize_prediction(best_mask, epidermis_mask, dont_care_mask, cropped_oct_
     plt.imshow(cropped_oct_image)
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
     c1 = show_mask(best_mask, plt.gca(), color_arr= COLORS.GT)
+    fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask.npy'
+    with open(fpath, 'wb+') as f:
+        numpy.save(f,best_mask) #a = numpy.load(fpath)
     c2 = show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.EPIDERMIS, outline=True)
     if dont_care_mask is not None:
         c3 = show_mask(dont_care_mask, plt.gca(), color_arr=COLORS.DONT_CARE)
