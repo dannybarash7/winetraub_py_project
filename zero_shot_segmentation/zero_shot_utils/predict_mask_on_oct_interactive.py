@@ -81,6 +81,52 @@ def is_trapezoid_image(oct_image):
     if top_row_first_non_zero_index > margin or mid_row_first_non_zero_index > margin:
         return True
 
+def find_topmost_connected_component(image):
+    # Threshold the image
+    _, thresh = cv2.threshold(image, 10, 255, cv2.THRESH_BINARY)
+    thresh = thresh[:,:,0]
+    # Find connected components
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(thresh, connectivity=8)
+
+    # Check if there are two connected components
+    if num_labels == 1:
+        return None, None
+
+    # Find the topmost connected component
+    topmost_component_index = np.argmin(stats[1:, 1]) + 1  # Skip background component
+    return topmost_component_index, labels
+
+def set_topmost_component_to_zeros(image, topmost_component_index, labels):
+    # Set pixels of the topmost component to zeros
+    image[np.where(labels == topmost_component_index)] = 0
+    return image
+
+def handle_two_connected_components(image):
+    # Find and process the topmost connected component
+    topmost_component_index, labels = find_topmost_connected_component(image)
+    if topmost_component_index is not None:
+        image = set_topmost_component_to_zeros(image, topmost_component_index, labels)
+    return image
+
+
+def normalize(oct_input_image_path):
+    # Load OCT image
+    oct_image = cv2.imread(oct_input_image_path)
+    # for good input points, we need the gel masked out.
+    for threshold in np.arange(0.75,0.01,-0.05):
+        masked_gel_image = mask_gel_and_low_signal(oct_image, apply_gray_level_scaling=False, min_signal_threshold=threshold)
+        masked_gel_image = handle_two_connected_components(masked_gel_image)
+        y_center = get_y_center_of_tissue(masked_gel_image)
+        if not np.isnan(y_center):
+            break
+    if np.isnan(y_center):
+        print("WARNING:")
+    # y_center = y_center * (2/3) #center of tissue should be around 2/3 height.
+    # no need to crop - the current folder contains pre cropped images.
+    cropped_oct, crop_args = crop_oct_for_pix2pix(oct_image, y_center)
+    cropped_oct = gray_level_rescale(cropped_oct)
+    return cropped_oct
+
 def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None, dont_care_mask = None):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
