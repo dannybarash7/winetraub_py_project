@@ -91,22 +91,28 @@ def find_topmost_connected_component(image):
     # Check if there are two connected components
     if num_labels == 1:
         return None, None
-
+    for i,bbox in enumerate(stats):
+        if i == 0:
+            continue  # Skip background component
+        if np.abs(bbox[2] - bbox[0]) == image.shape[1]: #if it goes the whole width:
+            return i,labels
     # Find the topmost connected component
-    topmost_component_index = np.argmin(stats[1:, 1]) + 1  # Skip background component
-    return topmost_component_index, labels
+    # topmost_component_index = np.argmin(stats[1:, 1]) + 1  # Skip background component
+    return None, None
 
-def set_topmost_component_to_zeros(image, topmost_component_index, labels):
+def set_non_tissue_to_zero(image, tissue_index, labels):
     # Set pixels of the topmost component to zeros
-    image[np.where(labels == topmost_component_index)] = 0
+    image[np.where(labels != tissue_index)] = 0
     return image
 
 def handle_two_connected_components(image):
     # Find and process the topmost connected component
-    topmost_component_index, labels = find_topmost_connected_component(image)
-    if topmost_component_index is not None:
-        image = set_topmost_component_to_zeros(image, topmost_component_index, labels)
-    return image
+    tissue_index, labels = find_topmost_connected_component(image)
+    if tissue_index is not None:
+        image = set_non_tissue_to_zero(image, tissue_index, labels)
+        return image
+    else:
+        return None
 
 
 def normalize(oct_input_image_path):
@@ -114,8 +120,11 @@ def normalize(oct_input_image_path):
     oct_image = cv2.imread(oct_input_image_path)
     # for good input points, we need the gel masked out.
     for threshold in np.arange(0.75,0.01,-0.05):
+        #decrease the threshold until there is one connected compeonent that goes from left to right
         masked_gel_image = mask_gel_and_low_signal(oct_image, apply_gray_level_scaling=False, min_signal_threshold=threshold)
         masked_gel_image = handle_two_connected_components(masked_gel_image)
+        if masked_gel_image is None:
+            continue
         y_center = get_y_center_of_tissue(masked_gel_image)
         if not np.isnan(y_center):
             break

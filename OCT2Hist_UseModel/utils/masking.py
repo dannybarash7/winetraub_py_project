@@ -30,7 +30,7 @@ from OCT2Hist_UseModel.utils.show_images import showImg
 
 
 
-def mask_image_gel(img, const=np.nan):
+def mask_image_gel(img, threshold=np.nan):
 
   # Input checks and input image conversion
   assert(img.dtype == np.uint8)
@@ -46,7 +46,10 @@ def mask_image_gel(img, const=np.nan):
   filt_img = np.nan_to_num(filt_img)
   #the problem is that in the gel there are signals as strong as the tissue.
   #maybe go from below instead of gel, or find a strong vertical derivative, which is image wide.
-  min_signal_threshold = find_min_gel_signal(filt_img, const = const)
+  if np.isnan(threshold):
+    min_signal_threshold = find_min_gel_signal(filt_img)
+  else:
+    min_signal_threshold = threshold
   filt_img[filt_img < min_signal_threshold] = 0
 
   # Filtering out the gel is usful since we don't care about the gel area for histology
@@ -155,7 +158,7 @@ def find_min_signal(filt_img):
   minSignal = 0.28 * (m_mean_max - m_mean_min) + m_mean_min
   return minSignal
 
-def find_min_gel_signal(filt_img, const = 0.28):
+def find_min_gel_signal(filt_img, threshold = 0.28):
   # Average over x axis (rows) to get one value for each depth
   h,w,c = filt_img.shape
   top_half = int(h/2)
@@ -166,7 +169,7 @@ def find_min_gel_signal(filt_img, const = 0.28):
   # Then we figure out what is the average intensity level of air, by examining the top 50 rows of OCT image
   m_mean_min = np.mean(top_half_mean[:50])
   # Finally we define a threshold for OCT intensity, anything below that will be blacked out
-  minSignal = const * (m_mean_max - m_mean_min) + m_mean_min
+  minSignal = threshold * (m_mean_max - m_mean_min) + m_mean_min
   return minSignal
 
 def get_rows_min_max(filt_img):
@@ -381,6 +384,6 @@ def mask_gel_and_low_signal(oct_image,
     rescaled = oct_image
 
   # Mask
-  masked_image, *_ = mask_image_gel(rescaled, const=min_signal_threshold)
+  masked_image, *_ = mask_image_gel(rescaled, threshold=min_signal_threshold)
 
   return masked_image

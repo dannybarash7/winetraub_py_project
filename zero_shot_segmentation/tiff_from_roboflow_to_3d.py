@@ -330,9 +330,9 @@ def main(args):
             else:
                 print(f"skipping virtual histology segmentation")
         df.to_csv(os.path.join(output_image_dir, 'iou_scores.csv'), index=True)
-    if total_samples_vhist > 0:
-        handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
-                     total_samples_oct, total_samples_vhist, total_samples_histology)
+    # if total_samples_vhist > 0:
+    #     handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
+    #                  total_samples_oct, total_samples_vhist, total_samples_histology)
 
 
 def handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
