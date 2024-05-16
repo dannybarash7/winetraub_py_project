@@ -28,7 +28,7 @@ from tqdm import tqdm
 
 from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask
-from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS, ANNOTATED_DATA
+from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS, ANNOTATED_DATA, rf_project_name
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
 
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
@@ -46,19 +46,21 @@ visualize_input_gt = False
 annotated_data = ANNOTATED_DATA
 
 # visualize_input_hist = False
-visualize_pred_vs_gt_vhist = False
-visualize_pred_vs_gt_oct = False
-visualize_pred_over_vhist = False
-visualize_input_vhist = False
+# visualize_pred_vs_gt_vhist = False
+visualize_pred_vs_gt_oct = True
+visualize_pred_over_vhist = True
+visualize_input_vhist = True
 
-create_virtual_histology = False
+create_virtual_histology = True
 segment_real_hist = False
 continue_for_existing_images =True
 #None or filename
 single_image_to_segment = None
 patient_to_skip = None# ["LG-63", "LG-73", "LHC-36"]
 #/Users/dannybarash/Code/oct/paper_code/3d_segmentation/rescaled_images/frame_0020_cropped_oct_image.png
-roboflow_annot_dataset_dir = os.path.join("/Users/dannybarash/Code/oct/paper_code/3d_segmentation/rescaled_images/")
+# roboflow_annot_dataset_dir = os.path.join("/Users/dannybarash/Code/oct/paper_code/3d_segmentation/rescaled_images/")
+roboflow_annot_dataset_dir = os.path.join(os.getcwd(), f"./Reconstruction6_EnhancedContrast-{version}/test")
+# /Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/Reconstruction6_EnhancedContrast-1/test
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
 
 if MEDSAM:
@@ -168,6 +170,42 @@ def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask):
                                  prompts, ext="oct_pred")
     return prompts
 
+# def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask):
+#     global output_image_dir, total_iou_vhist, total_dice_vhist
+#
+#     fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_oct.npy'
+#     # with open(fpath, 'wb+') as f:
+#     #     numpy.save(f,oct_mask[0]) #a = numpy.load(fpath)
+#     best_mask = numpy.load(fpath)
+#     crop_args_path = f'{os.path.join(output_image_dir, image_name)}_oct_crop_args.pickle'
+#     # with open(crop_args_path, 'wb') as file:
+#     #     pickle.dump(crop_args, file)
+#     crop_args = pickle.load(open(crop_args_path, 'rb'))
+#     dont_care_mask = crop(dont_care_mask, **crop_args)
+#     path = f'{os.path.join(output_image_dir, image_name)}_cropped_oct_image.png'
+#     # save image to disk
+#     # cv2.imwrite(path, cropped_oct_image)
+#     cropped_oct_image = cv2.imread(path)
+#     # Calculate IoU for each class# DERMIS
+#     # epidermis_mask = cropped_histology_gt
+#     # if warped_mask_true is None or warped_mask_true.sum().sum() == 0:
+#     #     print(f"Could not segment OCT image {image_path}.")
+#     # else:
+#     # epidermis_iou_oct, dice, best_mask = single_or_multiple_predictions(epidermis_mask, oct_mask, EPIDERMIS,
+#     #                                                                     dont_care_mask=dont_care_mask)
+#     # print(f"OCT iou: {epidermis_iou_oct}.")
+#     # print(f"OCT dice: {dice}.")
+#     # total_iou_oct[EPIDERMIS] += epidermis_iou_oct
+#     # total_dice_oct[EPIDERMIS] += dice
+#     # df.loc[image_name, "iou_oct"] = epidermis_iou_oct
+#     # df.loc[image_name, "dice_oct"] = dice
+#     # df.loc[image_name, "nclicks_oct"] = n_points_used
+#
+#     if visualize_pred_vs_gt_oct:
+#         visualize_prediction(best_mask, None, dont_care_mask, cropped_oct_image, None, image_name, output_image_dir,
+#                              None, ext="oct_pred")
+#     return None
+
 
 def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts):
     global output_image_dir, total_iou_vhist, total_dice_vhist
@@ -240,9 +278,9 @@ def main(args):
     global roboflow_next_img, df, output_image_dir, total_dice_oct, total_dice_vhist, total_iou_oct, total_iou_vhist, \
         total_iou_histology, total_dice_histology, total_samples_oct, total_samples_vhist, total_samples_histology
 
-    # download_images_and_masks()
+    download_images_and_masks()
     # Get the list of image files
-    image_files = [f for f in os.listdir(roboflow_annot_dataset_dir) if f.endswith(".png")]
+    image_files = [f for f in os.listdir(roboflow_annot_dataset_dir) if f.endswith(".jpg")]
     image_files.sort()
     total_iou_vhist = {EPIDERMIS: 0}  # DERMIS:0 , # IOU for each class
     total_iou_oct = {EPIDERMIS: 0}
@@ -253,9 +291,9 @@ def main(args):
     total_samples_vhist = 0
     total_samples_oct = 0
     total_samples_histology = 0
-    # path_to_annotations = os.path.join(roboflow_annot_dataset_dir, "_annotations.coco.json")
-    # from pylabel import importer
-    # dataset = importer.ImportCoco(path_to_annotations, path_to_images=roboflow_annot_dataset_dir, name="zero_shot_oct")
+    path_to_annotations = os.path.join(roboflow_annot_dataset_dir, "_annotations.coco.json")
+    from pylabel import importer
+    dataset = importer.ImportCoco(path_to_annotations, path_to_images=roboflow_annot_dataset_dir, name="zero_shot_oct")
     csv_path = os.path.join(args.output_dir, "iou_scores.csv")
     csv_exists = os.path.exists(csv_path)
     if csv_exists:
@@ -345,9 +383,8 @@ def main(args):
             else:
                 print(f"skipping virtual histology segmentation")
         df.to_csv(os.path.join(output_image_dir, 'iou_scores.csv'), index=True)
-    # if total_samples_vhist > 0:
-    #     handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
-    #                  total_samples_oct, total_samples_vhist, total_samples_histology)
+    handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
+                 total_samples_oct, total_samples_vhist, total_samples_histology)
 
 
 def handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
@@ -404,14 +441,15 @@ def visualize_prediction(best_mask, epidermis_mask, dont_care_mask, cropped_oct_
     plt.axis('off')
     # plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}")
 
-    text_to_display = f"dice {dice:.2f}"
-    plt.text(0.02, 0.9, text_to_display, color='white', fontsize=12, transform=plt.gca().transAxes)
+    if dice is not None:
+        text_to_display = f"dice {dice:.2f}"
+        plt.text(0.02, 0.9, text_to_display, color='white', fontsize=12, transform=plt.gca().transAxes)
     if args.point:
         add_pts, remove_pts = prompts["add"], prompts["remove"]
         # overlay points
         plt.scatter(remove_pts[:, 0], remove_pts[:, 1], color='red', marker='o', s=10)
         plt.scatter(add_pts[:, 0], add_pts[:, 1], color='lightgreen', marker='+', s=15)
-    if args.box:
+    if args.box and prompts is not None:
         # overlay box
         rectangle_coords = prompts['box']
         rectangle = patches.Rectangle((rectangle_coords[0], rectangle_coords[1]),
