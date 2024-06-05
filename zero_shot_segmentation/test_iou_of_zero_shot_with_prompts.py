@@ -28,7 +28,7 @@ from tqdm import tqdm
 
 from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask
-from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS
+from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS, ANNOTATED_DATA
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
 
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
@@ -38,13 +38,14 @@ from zero_shot_segmentation.zero_shot_utils.utils import single_or_multiple_pred
 
 sys.path.append('./OCT2Hist_UseModel')
 sys.path.append('./zero_shot_segmentation')
+annotated_data = ANNOTATED_DATA
 
 # Define the Roboflow project URL and API key
 
 # Flags
-visualize_input_gt = False
+visualize_input_gt = True
 # visualize_input_hist = False
-visualize_pred_vs_gt_vhist = False
+visualize_pred_vs_gt_vhist = True
 visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
 visualize_input_vhist = True
@@ -192,6 +193,8 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompt
         print(f"Could not segment {image_path}.")
         return
 
+    if not ANNOTATED_DATA:
+        return
     epidermis_iou_vhist, dice, best_mask = single_or_multiple_predictions(cropped_vhist_mask_true, cropped_vhist_mask,
                                                                           EPIDERMIS, dont_care_mask=dont_care_mask)
     if best_mask is None:
@@ -286,14 +289,18 @@ def main(args):
         print(f"\nimage number {i}: {image_name}")
         image_path = os.path.join(roboflow_annot_dataset_dir, oct_fname)
         roboflow_next_img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-        oct_data = dataset.df[dataset.df.img_filename == oct_fname]
-        epidermis_data = oct_data[oct_data.cat_name == "epidermis"].ann_segmentation.values[0][0]
-        epidermis_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], epidermis_data)
-        if 'hair' in oct_data.cat_name.unique():
-            dont_care_data = oct_data[oct_data.cat_name == "hair"].ann_segmentation.values[0][0]
-            dont_care_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], dont_care_data)
-            epidermis_mask = epidermis_mask & (~dont_care_mask)
+        if annotated_data:
+            oct_data = dataset.df[dataset.df.img_filename == oct_fname]
+            epidermis_data = oct_data[oct_data.cat_name == "epidermis"].ann_segmentation.values[0][0]
+            epidermis_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], epidermis_data)
+            if 'hair' in oct_data.cat_name.unique():
+                dont_care_data = oct_data[oct_data.cat_name == "hair"].ann_segmentation.values[0][0]
+                dont_care_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], dont_care_data)
+                epidermis_mask = epidermis_mask & (~dont_care_mask)
+            else:
+                dont_care_mask = None
         else:
+            epidermis_mask = None
             dont_care_mask = None
 
 
