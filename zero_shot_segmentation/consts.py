@@ -15,7 +15,7 @@ class COLORS:
     GT = [0 / 255, 128 / 255, 255 / 255, 0.6]
     DONT_CARE = [255 / 255, 0 / 255, 0 / 255, 0.6]
 
-rf_project_name = "reconstruction6_enhancedcontrast"
+rf_project_name = "2024.4.30_83f_st2_cheek_10x_1_r2"
 rf_dataset_type = "coco-segmentation"  # "png-mask-semantic"
 version = 1
 
