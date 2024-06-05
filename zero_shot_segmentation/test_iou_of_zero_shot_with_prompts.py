@@ -388,14 +388,15 @@ def visualize_prediction(best_mask, epidermis_mask, dont_care_mask, cropped_oct_
     plt.axis('off')
     # plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}")
 
-    text_to_display = f"dice {dice:.2f}"
-    plt.text(0.02, 0.9, text_to_display, color='white', fontsize=12, transform=plt.gca().transAxes)
+    if dice is not None:
+        text_to_display = f"dice {dice:.2f}`"
+        plt.text(0.02, 0.9, text_to_display, color='white', fontsize=12, transform=plt.gca().transAxes)
     if args.point:
         add_pts, remove_pts = prompts["add"], prompts["remove"]
         # overlay points
         plt.scatter(remove_pts[:, 0], remove_pts[:, 1], color='red', marker='o', s=10)
         plt.scatter(add_pts[:, 0], add_pts[:, 1], color='lightgreen', marker='+', s=15)
-    if args.box:
+    if args.box and prompts is not None:
         # overlay box
         rectangle_coords = prompts['box']
         rectangle = patches.Rectangle((rectangle_coords[0], rectangle_coords[1]),
