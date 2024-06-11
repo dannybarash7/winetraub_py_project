@@ -22,7 +22,7 @@ import cv2
 
 import matplotlib.pyplot as plt
 
-from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale
+from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale, gray_level_rescale_v2
 
 from OCT2Hist_UseModel.utils.show_images import readImgByPath
 from copy import deepcopy
@@ -165,7 +165,7 @@ def find_min_gel_signal(filt_img, threshold = 0.28):
   top_half_mean = np.nanmean(filt_img[:top_half, :, 0], axis=1)
   # Then we figure out what is the "brightest" row by taking percentile of top rows:
 
-  m_mean_max = np.percentile(top_half_mean, 99, axis=0)
+  m_mean_max = np.percentile(top_half_mean, 90, axis=0)
   # Then we figure out what is the average intensity level of air, by examining the top 50 rows of OCT image
   m_mean_min = np.mean(top_half_mean[:50])
   # Finally we define a threshold for OCT intensity, anything below that will be blacked out
@@ -186,7 +186,7 @@ def get_rows_min_max(filt_img):
 
 def smooth(img):
   # Apply a gaussian filter to smooth everything, it will help make the thresholding smoother
-  sigma = 20
+  sigma = 5
   # the default filter size in Matlab
   filter_size = int(2 * np.ceil(2 * sigma) + 1)
   filt_img = cv2.GaussianBlur(img, (filter_size, filter_size), sigma)
@@ -379,7 +379,8 @@ def mask_gel_and_low_signal(oct_image,
 
 
   if apply_gray_level_scaling:
-    rescaled = gray_level_rescale(oct_image) #gray_level_rescale_v2(oct_image)
+    # rescaled = gray_level_rescale(oct_image) #gray_level_rescale_v2(oct_image)
+    rescaled = gray_level_rescale_v2(oct_image)
   else:
     rescaled = oct_image
 

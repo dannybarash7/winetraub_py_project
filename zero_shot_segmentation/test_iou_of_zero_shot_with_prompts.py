@@ -50,13 +50,14 @@ visualize_pred_over_vhist = True
 visualize_input_vhist = True
 
 create_virtual_histology = True
-segment_real_hist = True
+segment_real_hist = False
 continue_for_existing_images =True
 #None or filename
 single_image_to_segment = None
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
 
-roboflow_annot_dataset_dir = os.path.join(os.getcwd(), f"./paper_data-{version}/test")
+roboflow_annot_dataset_dir = os.path.join("/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/2024.4.30_83F_ST2_Cheek_10x_1_R2-1_CE/test")
+# /Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/Reconstruction6_EnhancedContrast-1/test
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
 
 if MEDSAM:
