@@ -8,7 +8,7 @@ from OCT2Hist_UseModel.utils.crop import crop_oct_for_pix2pix, crop
 from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale, gray_level_rescale_v2
 from OCT2Hist_UseModel.utils.masking import mask_gel_and_low_signal
 from OCT2Hist_UseModel import oct2hist
-from zero_shot_segmentation.consts import DOWNSAMPLE_SAM_INPUT
+from zero_shot_segmentation.consts import DOWNSAMPLE_SAM_INPUT, TARGET_TISSUE_HEIGHT
 from zero_shot_segmentation.zero_shot_utils.run_sam_gui import run_gui_segmentation
 
 def warp_image(source_image, source_points, target_points):
@@ -170,22 +170,12 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
     microns_per_pixel_z = 1
     microns_per_pixel_x = 1
     # for good input points, we need the gel masked out.
-    rescaled = gray_level_rescale_v2(oct_image)
-    gel_image = mask_gel_and_low_signal(oct_image)
-    gel_mask = get_gel_mask_from_masked_image(gel_image)
-    oct_without_gel = rescaled.copy()
-    oct_without_gel[gel_mask != 0] = 0
-    y_center = get_y_center_of_tissue(gel_image)
-    # y_center = y_center * (2/3) #center of tissue should be around 2/3 height.
-    # no need to crop - the current folder contains pre cropped images.
-    cropped_oct, crop_args = crop_oct_for_pix2pix(rescaled, y_center)
-    cropped_histology_gt = crop(warped_mask_true, **crop_args)
-    cropped_oct_without_gel = crop(oct_without_gel, **crop_args)
-    cropped_dont_care_mask = crop(dont_care_mask, **crop_args)
-
+    crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_oct, no_gel_oct = preprocess_oct(dont_care_mask, oct_image,
+                                                                                          warped_mask_true)
     if create_vhist:
 
         # run vh&e
+
         virtual_histology_image, _, o2h_input = oct2hist.run_network(cropped_oct,
                                                                      microns_per_pixel_x=microns_per_pixel_x,
                                                                      microns_per_pixel_z=microns_per_pixel_z)
@@ -222,10 +212,33 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
         segmentation, points_used, prompts = run_gui_segmentation(cropped_oct, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
         virtual_histology_image = None
     # bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
-    return segmentation, virtual_histology_image, cropped_histology_gt, cropped_oct_without_gel, points_used, warped_mask_true, prompts, crop_args
+    return segmentation, virtual_histology_image, cropped_histology_gt, cropped_oct, points_used, warped_mask_true, prompts, crop_args, no_gel_oct
 
+
+def preprocess_oct(dont_care_mask, oct_image, warped_mask_true):
+    rescaled = gray_level_rescale_v2(oct_image)
+    tissue_image, low_signal_masked_image = mask_gel_and_low_signal(oct_image)
+    gel_mask = get_gel_mask_from_masked_image(tissue_image)
+    oct_without_gel = rescaled.copy()
+    oct_without_gel[gel_mask != 0] = 0
+    y_tissue_top = get_y_min_of_tissue(tissue_image)
+    if y_tissue_top > TARGET_TISSUE_HEIGHT:
+        delta = y_tissue_top - TARGET_TISSUE_HEIGHT
+    else:
+        delta = 0
+    # no need to crop - the current folder contains pre cropped images.
+    cropped_oct, crop_args = crop_oct_for_pix2pix(oct_image, y_tissue_top, delta)
+    cropped_histology_gt = crop(warped_mask_true, **crop_args)
+    cropped_oct_without_gel = crop(oct_without_gel, **crop_args)
+    cropped_dont_care_mask = crop(dont_care_mask, **crop_args)
+    return crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_oct, cropped_oct_without_gel
 
 def get_y_center_of_tissue(oct_image):
     non_zero_coords = np.column_stack(np.where(oct_image > 0))
     center_y = np.mean(non_zero_coords[:, 0])
+    return center_y
+
+def get_y_min_of_tissue(oct_image):
+    non_zero_coords = np.column_stack(np.where(oct_image > 0))
+    center_y = np.min(non_zero_coords[:, 0])
     return center_y

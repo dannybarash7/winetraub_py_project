@@ -385,6 +385,6 @@ def mask_gel_and_low_signal(oct_image,
     rescaled = oct_image
 
   # Mask
-  masked_image, *_ = mask_image_gel(rescaled, threshold=min_signal_threshold)
-
-  return masked_image
+  tissue_image, *_ = mask_image_gel(rescaled, threshold=min_signal_threshold)
+  low_signal_masked_image, *_ = mask_image(rescaled)
+  return tissue_image, low_signal_masked_image
