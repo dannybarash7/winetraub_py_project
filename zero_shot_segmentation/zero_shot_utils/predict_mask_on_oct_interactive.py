@@ -239,6 +239,8 @@ def get_y_center_of_tissue(oct_image):
     return center_y
 
 def get_y_min_of_tissue(oct_image):
-    non_zero_coords = np.column_stack(np.where(oct_image > 0))
-    center_y = np.min(non_zero_coords[:, 0])
+    if len(oct_image.shape) == 3:
+        oct_image = oct_image[:,:,0]
+    top_non_black_pixels_y_values = np.argmax(oct_image > 0, axis=0)
+    center_y = np.median(top_non_black_pixels_y_values)
     return center_y

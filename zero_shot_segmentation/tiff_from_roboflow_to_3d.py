@@ -509,6 +509,8 @@ if __name__ == "__main__":
     group.add_argument("--box", action="store_true", help="Specify a box.")
     group.add_argument("--grid", action="store_true", help="Specify a grid.")
     args = parser.parse_args()
+    print("run test_iou...prompts.py instead")
+    raise Exception("unifying both run files")
     if MEDSAM and args.point:
         raise Exception("MedSam does not support points")
     if not args.point and not args.box and not args.grid:
