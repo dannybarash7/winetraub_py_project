@@ -1,6 +1,6 @@
-MEDSAM = True
+MEDSAM = False
 SAMMED_2D = False
-SAM = False
+SAM = True
 
 rf_api_key = "R04BinsZcBZ6PsfKR2fP"
 rf_workspace = "yolab-kmmfx"
@@ -17,7 +17,7 @@ class COLORS:
 
 rf_project_name = "2024.4.30_83f_st2_cheek_10x_1_r2"
 rf_dataset_type = "coco-segmentation"  # "png-mask-semantic"
-version = 1
+version = 2
 TARGET_TISSUE_HEIGHT = 50
 ANNOTATED_DATA = True
 CONST_BOX = [0, 160, 1000, 400]
