@@ -286,6 +286,7 @@ def main(args):
 
     if take_first_n_images > 0:
         image_files = image_files[:take_first_n_images]
+    image_files = image_files[200:take_first_n_images]
     for oct_fname in tqdm(image_files):
         if single_image_to_segment is not None and not extract_filename_prefix(oct_fname).startswith(
                 single_image_to_segment):
