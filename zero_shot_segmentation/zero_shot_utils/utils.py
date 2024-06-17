@@ -277,7 +277,14 @@ def expand_bounding_rectangle(array, rect_shape):
 def bounding_rectangle(array):
     rows, cols = np.any(array, axis=1), np.any(array, axis=0)
     y1, y2 = np.where(rows)[0][[0, -1]]
-    x1, x2 = np.where(cols)[0][[0, -1]]
+    # x1, x2 = np.where(cols)[0][[0, -1]]
+    #expand by 20%
+    x1 = 0
+    x2 = array.shape[1]-1
+    y1 = y1 -5
+    h = y2 - y1
+    y2 = y2 + 0.25 * h
+    y2 = int(min(y2, array.shape[0]))
     return np.array([x1,y1,x2,y2])
 
 

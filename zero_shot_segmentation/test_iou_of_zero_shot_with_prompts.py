@@ -49,9 +49,10 @@ visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
 visualize_input_vhist = True
 
-create_virtual_histology = True
-segment_real_hist = False
-continue_for_existing_images =True
+segment_virtual_histology = True
+segment_real_histology = False
+segment_oct_flag = False
+continue_for_existing_images =False
 #None or filename
 single_image_to_segment = None
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
@@ -178,9 +179,8 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompt
     print("virtual histology segmentation")
     path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
     cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts, crop_args , no_gel_oct = predict(
-        image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=create_virtual_histology,
+        image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=segment_virtual_histology,
         output_vhist_path=path, prompts = prompts)
-
     fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_vhist.npy'
     with open(fpath, 'wb+') as f:
         numpy.save(f, cropped_vhist_mask[0])  # a = numpy.load(fpath)
@@ -244,6 +244,7 @@ def does_column_exist(oct_fname, domain_dice_str): #domain_dice_str = "dice_oct"
     return domain_dice_str in row.index and not pandas.isna(row[domain_dice_str])
 
 def main(args):
+    assert segment_oct or segment_virtual_histology or segment_real_histology
     global roboflow_next_img, df, output_image_dir, total_dice_oct, total_dice_vhist, total_iou_oct, total_iou_vhist, \
         total_iou_histology, total_dice_histology, total_samples_oct, total_samples_vhist, total_samples_histology
 
@@ -329,12 +330,12 @@ def main(args):
             plt.savefig(f'{os.path.join(output_image_dir, image_name)}_input_gt.png')
             plt.close('all')
         skip_oct = continue_for_existing_images and does_column_exist(oct_fname, "dice_oct")
-        if not skip_oct:
+        if segment_oct_flag and not skip_oct:
             prompts = segment_oct(image_path, epidermis_mask, image_name, dont_care_mask)
             total_samples_oct += 1
         else:
             print(f"skipping oct segmentation")
-        if segment_real_hist:
+        if segment_real_histology:
             skip_hist = continue_for_existing_images and does_column_exist(oct_fname, "dice_histology")
             if not skip_hist:
                 file_name = image_name[:-1] + "B.jpg"
@@ -344,7 +345,7 @@ def main(args):
                 total_samples_histology += 1
             else:
                 print(f"skipping histology segmentation")
-        if create_virtual_histology:
+        if segment_virtual_histology:
             skip_vhist = continue_for_existing_images and does_column_exist(oct_fname, "dice_vhist")
             if not skip_vhist:
                 segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts)

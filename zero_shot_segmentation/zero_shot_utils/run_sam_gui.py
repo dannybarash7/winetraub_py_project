@@ -342,7 +342,7 @@ class Segmenter():
             image_pe=medsam_model.prompt_encoder.get_dense_pe(),  # (1, 256, 64, 64)
             sparse_prompt_embeddings=sparse_embeddings,  # (B, 2, 256)
             dense_prompt_embeddings=dense_embeddings,  # (B, 256, 64, 64)
-            multimask_output=False,
+            multimask_output=False,#True
         )
 
         low_res_pred = torch.sigmoid(low_res_logits)  # (1, 1, 256, 256)
@@ -478,16 +478,17 @@ class Segmenter():
         self.mask_plot.set_data(self.mask_data)
         self.fig.canvas.draw()
 
-    def handle_multimask(self, masks):
+    def handle_multimask_medsam(self, masks):
         # used in grid based prediction.
         # TODO instead of a for loop, calculate intersection ious and drop the non maximal one.
         # like in calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id)
         for i, mask in enumerate(masks):
-            mask = mask["segmentation"]
+            mask = masks[i, :, :]
             mask = mask.astype(np.uint8)
             mask[self.global_masks > 0] = 0
             mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
             mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")
+            mask = apply_closing_operation(mask)
             contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
             xs, ys = [], []
             for contour in contours:  # nan to disconnect contours
@@ -507,6 +508,7 @@ class Segmenter():
         elif self.box_prediction_flag and self.auto_segmentation:
             mask = self.get_mask_for_auto_rect()
             self.handle_single_mask(mask)
+            # self.handle_multimask_medsam(mask)
         elif self.point_prediction_flag and self.auto_segmentation:
             mask = self.get_mask_for_auto_point()
             self.handle_single_mask(mask)
