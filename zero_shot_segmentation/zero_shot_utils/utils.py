@@ -283,7 +283,7 @@ def bounding_rectangle(array):
     x2 = array.shape[1]-1
     y1 = y1 -5
     h = y2 - y1
-    y2 = y2 + 0.2 * h
+    y2 = y2 + 0.15 * h
     y2 = int(min(y2, array.shape[0]))
     return np.array([x1,y1,x2,y2])
 
