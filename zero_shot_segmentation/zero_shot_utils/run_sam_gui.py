@@ -11,7 +11,8 @@ from matplotlib.patches import Circle
 from skimage import transform
 
 from OCT2Hist_UseModel.utils.masking import apply_closing_operation
-from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, INTERACTIVE_POINT_PREDICTION
+from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, INTERACTIVE_POINT_PREDICTION, CONST_BOX, \
+    ANNOTATED_DATA
 from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass, \
     expand_bounding_rectangle
 
@@ -357,10 +358,10 @@ class Segmenter():
         return medsam_seg
 
     def get_mask_for_auto_rect(self):
-        self.user_box = bounding_rectangle(self.gt_mask)
-        if self.gt_mask is None:
-            print("Missing input to auto rect box prediction")
-            return None
+        if ANNOTATED_DATA:
+            self.user_box = bounding_rectangle(self.gt_mask)
+        else:
+            self.user_box = np.array(CONST_BOX)
         if MEDSAM:
             masks = self.medsam_inference(self.img, self.user_box)
             masks = np.expand_dims(masks, 0)

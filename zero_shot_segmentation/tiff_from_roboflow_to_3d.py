@@ -28,7 +28,7 @@ from tqdm import tqdm
 
 from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask
-from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS, ANNOTATED_DATA
+from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS, ANNOTATED_DATA, rf_project_name
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
 
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
@@ -42,7 +42,9 @@ sys.path.append('./zero_shot_segmentation')
 # Define the Roboflow project URL and API key
 
 # Flags
-visualize_input_gt = True
+visualize_input_gt = False
+
+
 # visualize_input_hist = False
 visualize_pred_vs_gt_vhist = True
 visualize_pred_vs_gt_oct = True
@@ -51,13 +53,14 @@ visualize_input_vhist = True
 
 create_virtual_histology = True
 segment_real_hist = False
-continue_for_existing_images =True
+continue_for_existing_images =False
 #None or filename
 single_image_to_segment = None
-patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
-
+patient_to_skip = None# ["LG-63", "LG-73", "LHC-36"]
+#/Users/dannybarash/Code/oct/paper_code/3d_segmentation/rescaled_images/frame_0020_cropped_oct_image.png
+# roboflow_annot_dataset_dir = os.path.join("/Users/dannybarash/Code/oct/paper_code/3d_segmentation/rescaled_images/")
 roboflow_annot_dataset_dir = os.path.join("/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/2024.4.30_83F_ST2_Cheek_10x_1_R2-1_CE/test")
-# roboflow_annot_dataset_dir = os.path.join(os.getcwd(), f"./paper_data-{version}/test")
+# /Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/Reconstruction6_EnhancedContrast-1/test
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
 
 if MEDSAM:
@@ -74,7 +77,7 @@ def segment_histology(image_path, epidermis_mask, image_name, dont_care_mask, pr
     global total_iou_histology, total_dice_histology
     print("histology segmentation")
 
-    histology_mask, _, epidermis_mask, cropped_histology_image, n_points_used, warped_mask_true, prompts, crop_args, _ = predict(
+    histology_mask, _, epidermis_mask, cropped_histology_image, n_points_used, warped_mask_true, prompts, crop_args = predict(
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=False, prompts=prompts)
 
     dont_care_mask = crop(dont_care_mask, **crop_args)
@@ -94,8 +97,8 @@ def segment_histology(image_path, epidermis_mask, image_name, dont_care_mask, pr
         print(f"real histology iou: {epidermis_iou_real_hist}.")
         print(f"real histology dice: {dice}.")
         if visualize_pred_vs_gt_oct:
-            visualize_prediction_with_score(best_mask, epidermis_mask, dont_care_mask, cropped_histology_image, dice, image_name, output_image_dir,
-                                            prompts, ext="histology_pred")
+            visualize_prediction(best_mask, epidermis_mask, dont_care_mask, cropped_histology_image, dice, image_name, output_image_dir,
+                                 prompts, ext="histology_pred")
         total_iou_histology[EPIDERMIS] += epidermis_iou_real_hist
         total_dice_histology[EPIDERMIS] += dice
     # plt.figure(figsize=(5, 5))
@@ -133,7 +136,7 @@ def segment_histology(image_path, epidermis_mask, image_name, dont_care_mask, pr
 def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask):
     global output_image_dir, total_iou_vhist, total_dice_vhist
     print("OCT segmentation")
-    oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts, crop_args , no_gel_oct = predict(
+    oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts, crop_args = predict(
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=False, dont_care_mask = dont_care_mask)
 
     fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_oct.npy'
@@ -163,13 +166,25 @@ def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask):
         df.loc[image_name, "nclicks_oct"] = n_points_used
 
         if visualize_pred_vs_gt_oct:
-            visualize_prediction_with_score(best_mask, cropped_histology_gt, dont_care_mask, no_gel_oct, dice, image_name, output_image_dir,
-                                            prompts, ext="oct_pred")
-            visualize_prediction(best_mask, no_gel_oct, image_name, output_image_dir, ext="oct_pred")
-            if no_gel_oct is not None:
-                fpath = f'{os.path.join(output_image_dir, image_name)}_{"oct_no_gel"}'
-                cv2.imwrite(f'{fpath}.png', no_gel_oct)
+            visualize_prediction(best_mask, cropped_histology_gt, dont_care_mask, cropped_oct_image, dice, image_name, output_image_dir,
+                                 prompts, ext="oct_pred")
     return prompts
+
+def segment_oct_merge_mask_and_input(image_path, epidermis_mask, image_name, dont_care_mask):
+    """ This one takes the prediction mask and oct input, and just merges them."""
+    global output_image_dir, total_iou_vhist, total_dice_vhist
+    fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_oct.npy'
+    best_mask = numpy.load(fpath)
+    crop_args_path = f'{os.path.join(output_image_dir, image_name)}_oct_crop_args.pickle'
+    crop_args = pickle.load(open(crop_args_path, 'rb'))
+    dont_care_mask = crop(dont_care_mask, **crop_args)
+    path = f'{os.path.join(output_image_dir, image_name)}_cropped_oct_image.png'
+    cropped_oct_image = cv2.imread(path)
+
+    if visualize_pred_vs_gt_oct:
+        visualize_prediction(best_mask, None, dont_care_mask, cropped_oct_image, None, image_name, output_image_dir,
+                             None, ext="oct_pred")
+    return None
 
 
 def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts):
@@ -177,14 +192,12 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompt
     # v. histology segmentation
     print("virtual histology segmentation")
     path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
-    cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts, crop_args , no_gel_oct = predict(
+    cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts, crop_args = predict(
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=create_virtual_histology,
         output_vhist_path=path, prompts = prompts)
-
     fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_vhist.npy'
     with open(fpath, 'wb+') as f:
-        numpy.save(f, cropped_vhist_mask[0])  # a = numpy.load(fpath)
-
+        numpy.save(f,cropped_vhist_mask[0]) #a = numpy.load(fpath)
     # cropped_vhist_mask_true = crop(warped_vhist_mask_true, **crop_args)
     crop_args_path = f'{os.path.join(output_image_dir, image_name)}_vhist_crop_args.pickle'
     with open(crop_args_path, 'wb') as file:
@@ -231,12 +244,35 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompt
     total_dice_vhist[EPIDERMIS] += dice
 
     if visualize_pred_over_vhist:
-        visualize_prediction_with_score(best_mask, cropped_vhist_mask_true, dont_care_mask, cropped_vhist, dice, image_name, output_image_dir,
-                                        prompts, ext="vhist_pred")
-        visualize_prediction_with_score(best_mask, cropped_vhist_mask_true, dont_care_mask, no_gel_oct, dice, image_name, output_image_dir,
-                                        prompts, ext="vhist_pred_over_oct")
-        visualize_prediction(best_mask, cropped_vhist, image_name, output_image_dir, ext="vhist_pred")
-        visualize_prediction(best_mask, no_gel_oct, image_name, output_image_dir, ext="vhist_pred_over_oct")
+        visualize_prediction(best_mask, cropped_vhist_mask_true, dont_care_mask, cropped_vhist, dice, image_name, output_image_dir,
+                             prompts, ext="vhist_pred")
+        visualize_prediction(best_mask, cropped_vhist_mask_true, dont_care_mask,cropped_oct_image, dice, image_name, output_image_dir,
+                             prompts, ext="vhist_pred_over_oct")
+
+# def segment_vhist_merge_blah_blah(image_path, epidermis_mask, image_name, dont_care_mask, prompts):
+#     """ This one takes the prediction mask and oct input, and just merges them."""
+#     global output_image_dir, total_iou_vhist, total_dice_vhist
+#     fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_vhist.npy'
+#     # with open(fpath, 'wb+') as f:
+#     #     numpy.save(f,cropped_vhist_mask[0]) #a = numpy.load(fpath)
+#     best_mask = numpy.load(fpath)
+#     vhist_crop_args_path = f'{os.path.join(output_image_dir, image_name)}_vhist_crop_args.pickle'
+#     # with open(crop_args_path, 'wb') as file:
+#     #     pickle.dump(crop_args, file)
+#     crop_args = pickle.load(open(vhist_crop_args_path, 'rb'))
+#     dont_care_mask = crop(dont_care_mask, **crop_args)
+#     path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
+#     cropped_vhist_image = cv2.imread(path)
+#     oct_image = cv2.imread(image_path)
+#     oct_crop_args_path = f'{os.path.join(output_image_dir, image_name)}_oct_crop_args.pickle'
+#     crop_args = pickle.load(open(oct_crop_args_path, 'rb'))
+#     cropped_oct_image = crop(oct_image, **crop_args)
+#     if visualize_pred_over_vhist:
+#         visualize_prediction(best_mask, None, dont_care_mask, cropped_vhist_image, None, image_name, output_image_dir,
+#                              prompts, ext="vhist_pred")
+#         visualize_prediction(best_mask, None, dont_care_mask,cropped_oct_image, None, image_name, output_image_dir,
+#                              prompts, ext="vhist_pred_over_oct")
+
 
 def does_column_exist(oct_fname, domain_dice_str): #domain_dice_str = "dice_oct" | "dice_vhist" | "dice_histology"
     sample_name = extract_filename_prefix(oct_fname)
@@ -276,7 +312,7 @@ def main(args):
                            "dice_oct": numpy.nan, "dice_vhist": numpy.nan,
                            "dice_histology": numpy.nan, }, index=index_array)
 
-    take_first_n_images = args.take_first_n if args.take_first_n > 0 else -1
+    take_first_n_images =  -1
     output_image_dir = args.output_dir
     if not os.path.exists(output_image_dir):
         os.makedirs(output_image_dir)
@@ -395,28 +431,44 @@ def handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_d
     with open(file_path, 'w+') as file:
         file.write(str_to_save)
 
-def visualize_prediction(best_mask, cropped_oct_image, image_name, output_image_dir, ext):
+def visualize_prediction_over_oct(mask, cropped_oct_image):
+    plt.figure(figsize=(5, 5))
+    # cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
+    plt.imshow(cropped_oct_image)
+    # cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
+    c1 = show_mask(mask, plt.gca(), color_arr= COLORS.GT)
+    # c2 = show_mask(cropped_histology_gt, plt.gca(), random_color=True, alpha=0.2)
+    plt.axis('off')
+    # plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}")
+    plt.savefig(f'image_name.png', bbox_inches='tight', pad_inches=0)
+    # save_diff_image(best_mask, cropped_histology_gt, fpath)
+    plt.close('all')
+    return f'image_name.png'
+
+def visualize_prediction(best_mask, epidermis_mask, dont_care_mask, cropped_oct_image, dice, image_name, output_image_dir,
+                         prompts, ext):
     best_mask = best_mask.astype(bool)
     overlay = cropped_oct_image.copy()
     overlay[best_mask] = (255,128,0)
-    alpha = 0.4
+    alpha = 0.6
     overlayed_image = cv2.addWeighted(overlay, alpha, cropped_oct_image, 1 - alpha, 0)
     fpath = f'{os.path.join(output_image_dir, image_name)}_{ext}.png'
     cv2.imwrite(fpath, overlayed_image)
 
-def visualize_prediction_with_score(best_mask, epidermis_mask, dont_care_mask, cropped_oct_image, dice, image_name, output_image_dir,
-                                    prompts, ext):
+def visualize_prediction_prev(best_mask, epidermis_mask, dont_care_mask, cropped_oct_image, dice, image_name, output_image_dir,
+                         prompts, ext):
     plt.figure(figsize=(5, 5))
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
     plt.imshow(cropped_oct_image)
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
     c1 = show_mask(best_mask, plt.gca(), color_arr= COLORS.GT)
-    c2 = show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.EPIDERMIS, outline=True)
+    # c2 = show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.EPIDERMIS, outline=True)
     if dont_care_mask is not None:
         c3 = show_mask(dont_care_mask, plt.gca(), color_arr=COLORS.DONT_CARE)
     # c2 = show_mask(cropped_histology_gt, plt.gca(), random_color=True, alpha=0.2)
     plt.axis('off')
     # plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}")
+
 
     if dice is not None:
         text_to_display = f"dice {dice:.2f}"
@@ -441,7 +493,7 @@ def visualize_prediction_with_score(best_mask, epidermis_mask, dont_care_mask, c
     # ]
     # plt.legend(handles=legend_elements)
     fpath = f'{os.path.join(output_image_dir, image_name)}_{ext}'
-    plt.savefig(f'{fpath}_score.png', bbox_inches='tight', pad_inches=0)
+    plt.savefig(f'{fpath}.png', bbox_inches='tight', pad_inches=0)
     # save_diff_image(best_mask, cropped_histology_gt, fpath)
     plt.close('all')
 
@@ -457,6 +509,8 @@ if __name__ == "__main__":
     group.add_argument("--box", action="store_true", help="Specify a box.")
     group.add_argument("--grid", action="store_true", help="Specify a grid.")
     args = parser.parse_args()
+    print("run test_iou...prompts.py instead")
+    raise Exception("unifying both run files")
     if MEDSAM and args.point:
         raise Exception("MedSam does not support points")
     if not args.point and not args.box and not args.grid:
