@@ -42,18 +42,18 @@ sys.path.append('./zero_shot_segmentation')
 # Define the Roboflow project URL and API key
 
 # Flags
-visualize_input_gt = False
+visualize_input_gt = True
 # visualize_input_hist = False
-visualize_pred_vs_gt_vhist = False
+visualize_pred_vs_gt_vhist = True
 visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
 visualize_input_vhist = True
 
 create_virtual_histology = True
 segment_real_hist = True
-continue_for_existing_images =True
+continue_for_existing_images =False
 #None or filename
-single_image_to_segment =  None
+single_image_to_segment =  "LH-22-Slide03_Section03_yp0_A"#"LJ-31-Slide06_Section02_yp0_A"
 
 
 roboflow_annot_dataset_dir = os.path.join(os.getcwd(), f"./paper_data-{version}/test")
@@ -384,7 +384,7 @@ def visualize_prediction(best_mask, epidermis_mask, dont_care_mask, cropped_oct_
         # overlay points
         plt.scatter(remove_pts[:, 0], remove_pts[:, 1], color='red', marker='o', s=10)
         plt.scatter(add_pts[:, 0], add_pts[:, 1], color='lightgreen', marker='+', s=15)
-    if args.box:
+    if  False: # Don't draw the yellow prompt box #args.box:
         # overlay box
         rectangle_coords = prompts['box']
         rectangle = patches.Rectangle((rectangle_coords[0], rectangle_coords[1]),
