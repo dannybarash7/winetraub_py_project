@@ -369,7 +369,9 @@ def visualize_prediction(best_mask, epidermis_mask, dont_care_mask, cropped_oct_
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
     plt.imshow(cropped_oct_image)
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
-    c1 = show_mask(best_mask, plt.gca(), color_arr= COLORS.PREDICTED_EPIDERMISE_ORANGE)
+    is_vhist = "vhist_pred" in ext
+    color = COLORS.PREDICTED_EPIDERMISE_ORANGE if is_vhist else COLORS.PREDICTED_EPIDERMISE_BLUE
+    c1 = show_mask(best_mask, plt.gca(), color_arr= color)
     c2 = show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.GT, outline=True)
     if dont_care_mask is not None:
         c3 = show_mask(dont_care_mask, plt.gca(), color_arr=COLORS.DONT_CARE)
@@ -377,8 +379,8 @@ def visualize_prediction(best_mask, epidermis_mask, dont_care_mask, cropped_oct_
     plt.axis('off')
     # plt.suptitle(f"oct segmentation w/o vhist: iou {epidermis_iou_oct:.2f}")
 
-    text_to_display = f"dice {dice:.2f}"
-    plt.text(0.02, 0.9, text_to_display, color='white', fontsize=12, transform=plt.gca().transAxes)
+    # text_to_display = f"dice {dice:.2f}"
+    # plt.text(0.02, 0.9, text_to_display, color='white', fontsize=12, transform=plt.gca().transAxes)
     if args.point:
         add_pts, remove_pts = prompts["add"], prompts["remove"]
         # overlay points
