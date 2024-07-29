@@ -49,13 +49,15 @@ visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
 visualize_input_vhist = True
 
-create_virtual_histology = True
-segment_real_hist = False
+segment_virtual_histology = True
+segment_real_histology = False
+segment_oct_flag = True
 continue_for_existing_images =True
 #None or filename
 single_image_to_segment = None
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
 
+# CONFIG
 roboflow_annot_dataset_dir = os.path.join("/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/2024.4.30_83F_ST2_Cheek_10x_1_R2-1_CE/test")
 # roboflow_annot_dataset_dir = os.path.join(os.getcwd(), f"./paper_data-{version}/test")
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
@@ -178,9 +180,8 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompt
     print("virtual histology segmentation")
     path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
     cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts, crop_args , no_gel_oct = predict(
-        image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=create_virtual_histology,
+        image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=segment_virtual_histology,
         output_vhist_path=path, prompts = prompts)
-
     fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_vhist.npy'
     with open(fpath, 'wb+') as f:
         numpy.save(f, cropped_vhist_mask[0])  # a = numpy.load(fpath)
@@ -195,7 +196,7 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompt
         cropped_vhist = cv2.cvtColor(cropped_vhist, cv2.COLOR_BGR2RGB)
         plt.imshow(cropped_vhist)
         cropped_vhist = cv2.cvtColor(cropped_vhist, cv2.COLOR_BGR2RGB)
-        show_mask(cropped_vhist_mask_true, plt.gca(), color_arr= COLORS.GT)
+        show_mask(cropped_vhist_mask_true, plt.gca(), color_arr= COLORS.PREDICTED_EPIDERMISE_BLUE)
         plt.axis('off')
         plt.suptitle(f"Generated vhist and ground truth mask")
         plt.title(f"name {image_name}")
@@ -244,6 +245,7 @@ def does_column_exist(oct_fname, domain_dice_str): #domain_dice_str = "dice_oct"
     return domain_dice_str in row.index and not pandas.isna(row[domain_dice_str])
 
 def main(args):
+    assert segment_oct or segment_virtual_histology or segment_real_histology
     global roboflow_next_img, df, output_image_dir, total_dice_oct, total_dice_vhist, total_iou_oct, total_iou_vhist, \
         total_iou_histology, total_dice_histology, total_samples_oct, total_samples_vhist, total_samples_histology
 
@@ -322,19 +324,19 @@ def main(args):
         if visualize_input_gt:
             plt.figure(figsize=(5, 5))
             plt.imshow(roboflow_next_img)
-            show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.GT)
+            show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.PREDICTED_EPIDERMISE_BLUE)
             plt.axis('off')
             plt.suptitle(f"Input oct and ground truth mask")
             plt.title(f"{image_name}")
             plt.savefig(f'{os.path.join(output_image_dir, image_name)}_input_gt.png')
             plt.close('all')
         skip_oct = continue_for_existing_images and does_column_exist(oct_fname, "dice_oct")
-        if not skip_oct:
+        if segment_oct_flag and not skip_oct:
             prompts = segment_oct(image_path, epidermis_mask, image_name, dont_care_mask)
             total_samples_oct += 1
         else:
             print(f"skipping oct segmentation")
-        if segment_real_hist:
+        if segment_real_histology:
             skip_hist = continue_for_existing_images and does_column_exist(oct_fname, "dice_histology")
             if not skip_hist:
                 file_name = image_name[:-1] + "B.jpg"
@@ -344,7 +346,7 @@ def main(args):
                 total_samples_histology += 1
             else:
                 print(f"skipping histology segmentation")
-        if create_virtual_histology:
+        if segment_virtual_histology:
             skip_vhist = continue_for_existing_images and does_column_exist(oct_fname, "dice_vhist")
             if not skip_vhist:
                 segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts)
@@ -410,8 +412,10 @@ def visualize_prediction_with_score(best_mask, epidermis_mask, dont_care_mask, c
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
     plt.imshow(cropped_oct_image)
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
-    c1 = show_mask(best_mask, plt.gca(), color_arr= COLORS.GT)
-    c2 = show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.EPIDERMIS, outline=True)
+    is_vhist = "vhist_pred" in ext
+    color = COLORS.PREDICTED_EPIDERMISE_ORANGE if is_vhist else COLORS.PREDICTED_EPIDERMISE_BLUE
+    c1 = show_mask(best_mask, plt.gca(), color_arr= color)
+    c2 = show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.GT, outline=True)
     if dont_care_mask is not None:
         c3 = show_mask(dont_care_mask, plt.gca(), color_arr=COLORS.DONT_CARE)
     # c2 = show_mask(cropped_histology_gt, plt.gca(), random_color=True, alpha=0.2)

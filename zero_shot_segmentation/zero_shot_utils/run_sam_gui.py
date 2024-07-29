@@ -342,7 +342,7 @@ class Segmenter():
             image_pe=medsam_model.prompt_encoder.get_dense_pe(),  # (1, 256, 64, 64)
             sparse_prompt_embeddings=sparse_embeddings,  # (B, 2, 256)
             dense_prompt_embeddings=dense_embeddings,  # (B, 256, 64, 64)
-            multimask_output=False,
+            multimask_output=False,#True
         )
 
         low_res_pred = torch.sigmoid(low_res_logits)  # (1, 1, 256, 256)
@@ -388,19 +388,6 @@ class Segmenter():
         x1, y1, x2, y2 = user_box
         mask = (points[:, 1] >= x1) & (points[:, 1] <= x2) & (points[:, 0] >= y1) & (points[:, 0] <= y2)
         return points[mask]
-
-    def find_max_distance_pixel(self,mask):
-        # Convert the boolean mask to an 8-bit type
-        mask = mask.astype(np.uint8) * 255
-
-        # Calculate distance transform
-        distance_transform = cv2.distanceTransform(mask, cv2.DIST_L2, 3)
-
-        # Find the coordinates of the pixel with the maximum distance value
-        max_distance_index = np.unravel_index(np.argmax(distance_transform), distance_transform.shape)
-
-        return max_distance_index
-
     def get_mask_for_auto_point(self):
         if self.prompts is None:
             gt_bbox = bounding_rectangle(self.gt_mask)
@@ -416,7 +403,6 @@ class Segmenter():
             # assert len(pos_points_in_gt_bbox) + len(neg_points_in_gt_bbox) == (user_box[2]-user_box[0] ) * (user_box[3]-user_box[1])
             add_pts = self.sample_points(pos_points)
             com = get_center_of_mass(self.gt_mask)
-            max_distance_pixel = self.find_max_distance_pixel(self.gt_mask)
             if self.gt_mask[com[0], com[1]]:  # if center of mass is in forground, overwrite the first point with it
                 add_pts[0] = [com[1], com[0]]  # com is from mat indices, [row,col], while add_pts is [x,y] format.
 
@@ -478,16 +464,16 @@ class Segmenter():
         self.mask_plot.set_data(self.mask_data)
         self.fig.canvas.draw()
 
+
+
     def handle_multimask(self, masks):
-        # used in grid based prediction.
-        # TODO instead of a for loop, calculate intersection ious and drop the non maximal one.
-        # like in calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id)
         for i, mask in enumerate(masks):
-            mask = mask["segmentation"]
+            mask = masks[i, :, :]
             mask = mask.astype(np.uint8)
             mask[self.global_masks > 0] = 0
             mask = self.remove_small_regions(mask, self.min_mask_region_area, "holes")
             mask = self.remove_small_regions(mask, self.min_mask_region_area, "islands")
+            mask = apply_closing_operation(mask)
             contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
             xs, ys = [], []
             for contour in contours:  # nan to disconnect contours

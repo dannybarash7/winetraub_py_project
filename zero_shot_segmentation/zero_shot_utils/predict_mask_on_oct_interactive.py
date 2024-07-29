@@ -81,61 +81,6 @@ def is_trapezoid_image(oct_image):
     if top_row_first_non_zero_index > margin or mid_row_first_non_zero_index > margin:
         return True
 
-def find_topmost_connected_component(image):
-    # Threshold the image
-    _, thresh = cv2.threshold(image, 10, 255, cv2.THRESH_BINARY)
-    thresh = thresh[:,:,0]
-    # Find connected components
-    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(thresh, connectivity=8)
-
-    # Check if there are two connected components
-    if num_labels == 1:
-        return None, None
-    for i,bbox in enumerate(stats):
-        if i == 0:
-            continue  # Skip background component
-        if np.abs(bbox[2] - bbox[0]) == image.shape[1]: #if it goes the whole width:
-            return i,labels
-    # Find the topmost connected component
-    # topmost_component_index = np.argmin(stats[1:, 1]) + 1  # Skip background component
-    return None, None
-
-def set_non_tissue_to_zero(image, tissue_index, labels):
-    # Set pixels of the topmost component to zeros
-    image[np.where(labels != tissue_index)] = 0
-    return image
-
-def handle_two_connected_components(image):
-    # Find and process the topmost connected component
-    tissue_index, labels = find_topmost_connected_component(image)
-    if tissue_index is not None:
-        image = set_non_tissue_to_zero(image, tissue_index, labels)
-        return image
-    else:
-        return None
-
-
-def normalize(oct_input_image_path):
-    # Load OCT image
-    oct_image = cv2.imread(oct_input_image_path)
-    # for good input points, we need the gel masked out.
-    for threshold in np.arange(0.75,0.01,-0.05):
-        #decrease the threshold until there is one connected compeonent that goes from left to right
-        masked_gel_image = mask_gel_and_low_signal(oct_image, apply_gray_level_scaling=False, min_signal_threshold=threshold)
-        masked_gel_image = handle_two_connected_components(masked_gel_image)
-        if masked_gel_image is None:
-            continue
-        y_center = get_y_center_of_tissue(masked_gel_image)
-        if not np.isnan(y_center):
-            break
-    if np.isnan(y_center):
-        print("WARNING:")
-    # y_center = y_center * (2/3) #center of tissue should be around 2/3 height.
-    # no need to crop - the current folder contains pre cropped images.
-    cropped_oct, crop_args = crop_oct_for_pix2pix(oct_image, y_center)
-    cropped_oct = gray_level_rescale(cropped_oct)
-    return cropped_oct
-
 
 def raise_mask(gel_mask, by = 5):
     # Convert the boolean array to an 8-bit integer array
@@ -223,7 +168,8 @@ def preprocess_oct(dont_care_mask, oct_image, warped_mask_true):
     oct_without_gel[gel_mask != 0] = 0
     y_tissue_top = get_y_min_of_tissue(tissue_image)
     if y_tissue_top > TARGET_TISSUE_HEIGHT:
-        delta = y_tissue_top - TARGET_TISSUE_HEIGHT
+        #CONFIG
+        delta = 80#y_tissue_top - TARGET_TISSUE_HEIGHT
     else:
         delta = 0
     # no need to crop - the current folder contains pre cropped images.

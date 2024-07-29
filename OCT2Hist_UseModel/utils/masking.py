@@ -27,10 +27,10 @@ from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale, gray_
 from OCT2Hist_UseModel.utils.show_images import readImgByPath
 from copy import deepcopy
 from OCT2Hist_UseModel.utils.show_images import showImg
+from zero_shot_segmentation.consts import NPOINTS_FOR_SEGMENTATION
 
 
-
-def mask_image_gel(img, threshold=np.nan):
+def mask_image_gel(img, min_signal_threshold=np.nan):
 
   # Input checks and input image conversion
   assert(img.dtype == np.uint8)
@@ -42,14 +42,9 @@ def mask_image_gel(img, threshold=np.nan):
 
   # Areas with low OCT signal usually don't have any useful information, we find a threshold
   # and filter out the image below it (usually at the bottom of the image)
-  # if np.isnan(min_signal_threshold):
-  filt_img = np.nan_to_num(filt_img)
-  #the problem is that in the gel there are signals as strong as the tissue.
-  #maybe go from below instead of gel, or find a strong vertical derivative, which is image wide.
-  if np.isnan(threshold):
+  if np.isnan(min_signal_threshold):
+    filt_img = np.nan_to_num(filt_img)
     min_signal_threshold = find_min_gel_signal(filt_img)
-  else:
-    min_signal_threshold = threshold
   filt_img[filt_img < min_signal_threshold] = 0
 
   # Filtering out the gel is usful since we don't care about the gel area for histology
@@ -186,6 +181,7 @@ def get_rows_min_max(filt_img):
 
 def smooth(img):
   # Apply a gaussian filter to smooth everything, it will help make the thresholding smoother
+  # CONFIG
   sigma = 5
   # the default filter size in Matlab
   filter_size = int(2 * np.ceil(2 * sigma) + 1)
@@ -279,7 +275,7 @@ def _mask_outline_to_points_of_interest(xs, ys, offset, n_points):
   return points_x, points_y
 
 def get_sam_input_points(no_gel_filt_img, virtual_histology_image = None):
-  n_points = 30
+  n_points = NPOINTS_FOR_SEGMENTATION
   offset_from_top_neg_mask = 0
   offset_from_top_pos_mask = 40
   offset_from_bottom_neg_mask = -10
@@ -379,12 +375,13 @@ def mask_gel_and_low_signal(oct_image,
 
 
   if apply_gray_level_scaling:
+    #what rescale to use? CONFIG
     # rescaled = gray_level_rescale(oct_image) #gray_level_rescale_v2(oct_image)
     rescaled = gray_level_rescale_v2(oct_image)
   else:
     rescaled = oct_image
 
   # Mask
-  tissue_image, *_ = mask_image_gel(rescaled, threshold=min_signal_threshold)
+  tissue_image, *_ = mask_image_gel(rescaled, min_signal_threshold=min_signal_threshold)
   low_signal_masked_image, *_ = mask_image(rescaled)
   return tissue_image, low_signal_masked_image
