@@ -42,18 +42,20 @@ def crop(input_image, target_width=1024, target_height=512, x0=0, z0=0):
 
     return cropped_image_padded
 
-def find_crop_coords(input_image, y_tissue_top, delta): #left top corner
+def find_crop_coords(input_image, y_center): #left top corner
     input_height, input_width = input_image.shape[:2]
     x0 = int(max(input_width/2 - 1024/2,0))
-    z0 = int(y_tissue_top + delta - input_height / 2)
+    z0 = int(max(y_center - 512/2,0))
+
+
     # x0 = 200  # @param {type:"slider", min:0, max:1000, step:10}
     # z0 = 110  # @param {type:"slider", min:0, max:1000, step:10}
     target_width = 1024
     target_height = 512
     return target_width, target_height, x0, z0
 
-def crop_oct_for_pix2pix(input_image, y_tissue_top, delta):
-    target_width, target_height, x0, z0 = find_crop_coords(input_image, y_tissue_top, delta)
+def crop_oct_for_pix2pix(input_image, y_center):
+    target_width, target_height, x0, z0 = find_crop_coords(input_image, y_center)
     coords = {"target_width":target_width, "target_height":target_height,"x0":x0,"z0":z0}
     cropped_img = crop(input_image, **coords)
     return cropped_img , coords

@@ -28,9 +28,7 @@ from OCT2Hist_UseModel.utils.show_images import readImgByPath
 from copy import deepcopy
 from OCT2Hist_UseModel.utils.show_images import showImg
 
-
-
-def mask_image_gel(img, threshold=np.nan):
+def mask_image_gel(img, min_signal_threshold=np.nan):
 
   # Input checks and input image conversion
   assert(img.dtype == np.uint8)
@@ -42,14 +40,9 @@ def mask_image_gel(img, threshold=np.nan):
 
   # Areas with low OCT signal usually don't have any useful information, we find a threshold
   # and filter out the image below it (usually at the bottom of the image)
-  # if np.isnan(min_signal_threshold):
-  filt_img = np.nan_to_num(filt_img)
-  #the problem is that in the gel there are signals as strong as the tissue.
-  #maybe go from below instead of gel, or find a strong vertical derivative, which is image wide.
-  if np.isnan(threshold):
+  if np.isnan(min_signal_threshold):
+    filt_img = np.nan_to_num(filt_img)
     min_signal_threshold = find_min_gel_signal(filt_img)
-  else:
-    min_signal_threshold = threshold
   filt_img[filt_img < min_signal_threshold] = 0
 
   # Filtering out the gel is usful since we don't care about the gel area for histology
