@@ -195,7 +195,7 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompt
         cropped_vhist = cv2.cvtColor(cropped_vhist, cv2.COLOR_BGR2RGB)
         plt.imshow(cropped_vhist)
         cropped_vhist = cv2.cvtColor(cropped_vhist, cv2.COLOR_BGR2RGB)
-        show_mask(cropped_vhist_mask_true, plt.gca(), color_arr= COLORS.GT)
+        show_mask(cropped_vhist_mask_true, plt.gca(), color_arr= COLORS.PREDICTED_EPIDERMISE_BLUE)
         plt.axis('off')
         plt.suptitle(f"Generated vhist and ground truth mask")
         plt.title(f"name {image_name}")
@@ -324,7 +324,7 @@ def main(args):
         if visualize_input_gt:
             plt.figure(figsize=(5, 5))
             plt.imshow(roboflow_next_img)
-            show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.GT)
+            show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.PREDICTED_EPIDERMISE_BLUE)
             plt.axis('off')
             plt.suptitle(f"Input oct and ground truth mask")
             plt.title(f"{image_name}")
@@ -412,8 +412,10 @@ def visualize_prediction_with_score(best_mask, epidermis_mask, dont_care_mask, c
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
     plt.imshow(cropped_oct_image)
     cropped_oct_image = cv2.cvtColor(cropped_oct_image, cv2.COLOR_BGR2RGB)
-    c1 = show_mask(best_mask, plt.gca(), color_arr= COLORS.GT)
-    c2 = show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.EPIDERMIS, outline=True)
+    is_vhist = "vhist_pred" in ext
+    color = COLORS.PREDICTED_EPIDERMISE_ORANGE if is_vhist else COLORS.PREDICTED_EPIDERMISE_BLUE
+    c1 = show_mask(best_mask, plt.gca(), color_arr= color)
+    c2 = show_mask(epidermis_mask, plt.gca(), color_arr= COLORS.GT, outline=True)
     if dont_care_mask is not None:
         c3 = show_mask(dont_care_mask, plt.gca(), color_arr=COLORS.DONT_CARE)
     # c2 = show_mask(cropped_histology_gt, plt.gca(), random_color=True, alpha=0.2)
