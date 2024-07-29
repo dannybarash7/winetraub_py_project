@@ -4,7 +4,7 @@ import numpy as np
 # input is an OCT image (n by m by 3), where 0 means masked out / non existing value
 def gray_level_rescale_v2(image):
   # Find the first percentile of lowest intensities
-  #15 for volume? 5 for normal?
+  #15 for volume? 5 for normal? #CONFIG
   min_non_zero = np.percentile(image[np.nonzero(image)],15)
 
   # Scale the image between 1 and 255

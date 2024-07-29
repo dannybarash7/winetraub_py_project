@@ -168,7 +168,8 @@ def preprocess_oct(dont_care_mask, oct_image, warped_mask_true):
     oct_without_gel[gel_mask != 0] = 0
     y_tissue_top = get_y_min_of_tissue(tissue_image)
     if y_tissue_top > TARGET_TISSUE_HEIGHT:
-        delta = y_tissue_top - TARGET_TISSUE_HEIGHT
+        #CONFIG
+        delta = 80#y_tissue_top - TARGET_TISSUE_HEIGHT
     else:
         delta = 0
     # no need to crop - the current folder contains pre cropped images.

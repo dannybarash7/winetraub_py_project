@@ -51,12 +51,13 @@ visualize_input_vhist = True
 
 segment_virtual_histology = True
 segment_real_histology = False
-segment_oct_flag = False
-continue_for_existing_images =False
+segment_oct_flag = True
+continue_for_existing_images =True
 #None or filename
 single_image_to_segment = None
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
 
+# CONFIG
 roboflow_annot_dataset_dir = os.path.join("/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/2024.4.30_83F_ST2_Cheek_10x_1_R2-1_CE/test")
 # roboflow_annot_dataset_dir = os.path.join(os.getcwd(), f"./paper_data-{version}/test")
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
