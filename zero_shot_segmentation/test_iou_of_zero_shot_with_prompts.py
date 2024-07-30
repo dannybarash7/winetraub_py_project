@@ -50,9 +50,9 @@ visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
 visualize_input_vhist = True
 
-segment_virtual_histology = False
+segment_virtual_histology = True
 segment_real_histology = False
-segment_oct_flag = True
+segment_oct_flag = False
 continue_for_existing_images =False
 #None or filename
 single_image_to_segment = None

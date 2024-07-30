@@ -27,7 +27,7 @@ from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale, gray_
 from OCT2Hist_UseModel.utils.show_images import readImgByPath
 from copy import deepcopy
 from OCT2Hist_UseModel.utils.show_images import showImg
-from zero_shot_segmentation.consts import NPOINTS_FOR_SEGMENTATION
+from zero_shot_segmentation.consts import NPOINTS_FOR_SEGMENTATION, SAMMED_2D
 
 
 def mask_image_gel(img, min_signal_threshold=np.nan):
@@ -376,8 +376,10 @@ def mask_gel_and_low_signal(oct_image,
 
   if apply_gray_level_scaling:
     #what rescale to use? CONFIG
-    # rescaled = gray_level_rescale(oct_image) #gray_level_rescale_v2(oct_image)
-    rescaled = gray_level_rescale_v2(oct_image)
+    if SAMMED_2D:
+      rescaled = gray_level_rescale(oct_image)
+    else:
+      rescaled = gray_level_rescale_v2(oct_image)
   else:
     rescaled = oct_image
 

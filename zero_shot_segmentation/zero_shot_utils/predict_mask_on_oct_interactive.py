@@ -115,13 +115,14 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
     microns_per_pixel_z = 1
     microns_per_pixel_x = 1
     # for good input points, we need the gel masked out.
-    crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_oct, no_gel_oct = preprocess_oct(dont_care_mask, oct_image,
+    crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_oct_unscaled, scaled_cropped_oct_without_gel = preprocess_oct(dont_care_mask, oct_image,
                                                                                           warped_mask_true)
+
     if create_vhist:
 
         # run vh&e
 
-        virtual_histology_image, _, o2h_input = oct2hist.run_network(cropped_oct,
+        virtual_histology_image, _, o2h_input = oct2hist.run_network(cropped_oct_unscaled,
                                                                      microns_per_pixel_x=microns_per_pixel_x,
                                                                      microns_per_pixel_z=microns_per_pixel_z)
         #take the R channel
@@ -154,10 +155,10 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
             virtual_histology_image = virtual_histology_image_copy
             prompts["box"] = prompts["box"] * 4
     else:
-        segmentation, points_used, prompts = run_gui_segmentation(cropped_oct, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
+        segmentation, points_used, prompts = run_gui_segmentation(scaled_cropped_oct_without_gel, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
         virtual_histology_image = None
     # bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
-    return segmentation, virtual_histology_image, cropped_histology_gt, cropped_oct, points_used, warped_mask_true, prompts, crop_args, no_gel_oct
+    return segmentation, virtual_histology_image, cropped_histology_gt, cropped_oct_unscaled, points_used, warped_mask_true, prompts, crop_args, scaled_cropped_oct_without_gel
 
 
 def preprocess_oct(dont_care_mask, oct_image, warped_mask_true):
@@ -172,12 +173,14 @@ def preprocess_oct(dont_care_mask, oct_image, warped_mask_true):
         delta = 80#y_tissue_top - TARGET_TISSUE_HEIGHT
     else:
         delta = 0
-    # no need to crop - the current folder contains pre cropped images.
-    cropped_oct, crop_args = crop_oct_for_pix2pix(oct_image, y_tissue_top, delta)
+    #CONFIG - should the cropped OCT be rescaled for vhist or not? oct_image/rescaled?
+    cropped_oct_unscaled, crop_args = crop_oct_for_pix2pix(oct_image, y_tissue_top, delta)
     cropped_histology_gt = crop(warped_mask_true, **crop_args)
-    cropped_oct_without_gel = crop(oct_without_gel, **crop_args)
+    scaled_cropped_oct_without_gel = crop(oct_without_gel, **crop_args)
     cropped_dont_care_mask = crop(dont_care_mask, **crop_args)
-    return crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_oct, cropped_oct_without_gel
+
+
+    return crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_oct_unscaled, scaled_cropped_oct_without_gel
 
 def get_y_center_of_tissue(oct_image):
     non_zero_coords = np.column_stack(np.where(oct_image > 0))
