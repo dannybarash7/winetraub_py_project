@@ -28,7 +28,8 @@ from tqdm import tqdm
 
 from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask
-from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS, ANNOTATED_DATA
+from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS, ANNOTATED_DATA, \
+    ROBOFLOW_ANNOT_DATASET_DIR
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
 
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
@@ -51,15 +52,14 @@ visualize_input_vhist = True
 
 segment_virtual_histology = True
 segment_real_histology = False
-segment_oct_flag = True
-continue_for_existing_images =True
+segment_oct_flag = False
+continue_for_existing_images =False
 #None or filename
 single_image_to_segment = None
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
 
 # CONFIG
-roboflow_annot_dataset_dir = os.path.join("/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/2024.4.30_83F_ST2_Cheek_10x_1_R2-1_CE/test")
-# roboflow_annot_dataset_dir = os.path.join(os.getcwd(), f"./paper_data-{version}/test")
+roboflow_annot_dataset_dir = ROBOFLOW_ANNOT_DATASET_DIR
 raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
 
 if MEDSAM:
