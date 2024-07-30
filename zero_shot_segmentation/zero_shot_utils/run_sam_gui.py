@@ -102,10 +102,7 @@ class Segmenter():
         :param auto_segmentation: if automatic is on, and grid_prediction_flag is on, it's full grid, multimask prediction. if box: it's a tight box around the gt. If point: random bg point from the gt box.
         :param gt_mask:
         """
-        if MEDSAM:
-            self.device = "cpu"
-        else:
-            self.device = "mps"
+        self.device = "mps"
         self.img = img
         self.min_mask_region_area = 500
         self.npoints = npoints
@@ -301,7 +298,7 @@ class Segmenter():
             return masks
 
     def transform_img(self, img_np, box_np):
-        medsam_model = self.predictor.model
+        medsam_model = self.predictor.model.to(self.device)
         if len(img_np.shape) == 2:
             img_3c = np.repeat(img_np[:, :, None], 3, axis=-1)
         else:
