@@ -28,5 +28,5 @@ ANNOTATED_DATA = True
 CONST_BOX = [0, 160, 1000, 400]
 NPOINTS_FOR_SEGMENTATION = 30
 
-ROBOFLOW_ANNOT_DATASET_DIR = "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/2024.4.30_83F_ST2_Cheek_10x_1_R2-1_CE/test"
-# ROBOFLOW_ANNOT_DATASET_DIR  = os.path.join(os.getcwd(), f"./paper_data-{version}/test")
+# ROBOFLOW_ANNOT_DATASET_DIR = "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/2024.4.30_83F_ST2_Cheek_10x_1_R2-1_CE/test"
+ROBOFLOW_ANNOT_DATASET_DIR  = os.path.join(os.getcwd(), f"./paper_data-{version}/test")
