@@ -51,9 +51,9 @@ visualize_pred_over_vhist = True
 visualize_input_vhist = True
 
 segment_virtual_histology = True
-segment_real_histology = False
-segment_oct_flag = False
-continue_for_existing_images =False
+segment_real_histology = True
+segment_oct_flag = True
+continue_for_existing_images =True
 #None or filename
 single_image_to_segment = None
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
@@ -354,8 +354,8 @@ def main(args):
             else:
                 print(f"skipping virtual histology segmentation")
         df.to_csv(os.path.join(output_image_dir, 'iou_scores.csv'), index=True)
-    handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
-                 total_samples_oct, total_samples_vhist, total_samples_histology)
+    # handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
+    #              total_samples_oct, total_samples_vhist, total_samples_histology)
 
 
 def handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct, total_iou_vhist,
@@ -470,4 +470,7 @@ if __name__ == "__main__":
     else:
         if args.remove_output_dir and os.path.exists(args.output_dir):
             shutil.rmtree(args.output_dir)
-        main(args)
+        output_dir = os.path.join(args.output_dir)
+        for run in range(5):
+            setattr(args, "output_dir",os.path.join(output_dir ,str(run+1)))
+            main(args)
