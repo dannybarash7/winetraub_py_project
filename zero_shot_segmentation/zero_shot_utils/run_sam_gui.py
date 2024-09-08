@@ -12,7 +12,7 @@ from skimage import transform
 
 from OCT2Hist_UseModel.utils.masking import apply_closing_operation
 from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, INTERACTIVE_POINT_PREDICTION, CONST_BOX, \
-    ANNOTATED_DATA
+    ANNOTATED_DATA, SEGMENT_TILES
 from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass, \
     expand_bounding_rectangle
 
@@ -571,22 +571,111 @@ class Segmenter():
         return mask
 
 
-def run_gui_segmentation(img, weights_path, gt_mask, args, prompts, dont_care_mask):
-    segmenter = run_gui(img, weights_path, args, gt_mask, prompts=prompts, dont_care_mask = dont_care_mask)
-    segmenter.global_masks[segmenter.global_masks > 0] = 1
-    points_used = segmenter.init_points - segmenter.remaining_points
-    # Danny: masks is for all masks, global masks is for the unified fixes
-    # segmenter.masks holds the predicted mask
-    # in case of point based predictions:
-    """
-            self.add_pts = add_pts
-            self.remove_pts = remove_pts
-    """
-    # hold the positive and negative points.
-    # in case of rectangle based predictions, self.user_box contains it.
 
-    if args.point:
-        prompts = {"add": segmenter.add_pts, "remove": segmenter.remove_pts}
+
+def run_gui_segmentation(img, weights_path, gt_mask, args, prompts, dont_care_mask):
+    if SEGMENT_TILES:
+        global_mask_aggregated, _, prompts_list = run_segmentation_on_tiles(img, gt_mask, dont_care_mask, weights_path, args)
+        return global_mask_aggregated, None, prompts_list
     else:
-        prompts = {"box": segmenter.user_box}
-    return segmenter.masks, points_used, prompts
+        segmenter = run_gui(img, weights_path, args, gt_mask, prompts=prompts, dont_care_mask = dont_care_mask)
+        segmenter.global_masks[segmenter.global_masks > 0] = 1
+        points_used = segmenter.init_points - segmenter.remaining_points
+        if args.point:
+            prompts = {"add": segmenter.add_pts, "remove": segmenter.remove_pts}
+        else:
+            prompts = {"box": segmenter.user_box}
+        return segmenter.masks, points_used, prompts
+
+
+import numpy as np
+
+
+# Function to split the image and masks by columns into four parts
+def split_into_tiles(img, gt_mask, dont_care_mask):
+    # Get the dimensions of the input
+    rows, cols, channels = img.shape
+    assert cols % 4 == 0, "The number of columns should be divisible by 4"
+
+    # Split the image and masks into 4 equal parts along the columns
+    col_step = cols // 4
+    img_tiles = [img[:, i * col_step:(i + 1) * col_step, :] for i in range(4)]
+    gt_mask_tiles = [gt_mask[:, i * col_step:(i + 1) * col_step] for i in range(4)]
+    if dont_care_mask is not None:
+        dont_care_tiles = [dont_care_mask[:, i * col_step:(i + 1) * col_step] for i in range(4)]
+    else:
+        dont_care_tiles = [None]*4
+
+    return img_tiles, gt_mask_tiles, dont_care_tiles
+
+
+# Function to aggregate masks back to original size
+def aggregate_masks(masks_list):
+    # Stack the masks back together along the column axis
+    for i in range(len(masks_list)):
+        masks_list[i] = masks_list[i][0]
+    return np.hstack(masks_list)
+
+
+def unify_prompts(prompts_list):
+    """
+    Unify four rectangular prompts into the tightest bounding rectangle.
+
+    prompts_list: A list of four prompts. Each prompt is a rectangle represented as [x1, y1, x2, y2].
+    The x-coordinates of each prompt are offset by 256 pixels to the right of the previous one.
+
+    Returns:
+    A single rectangle [x1, y1, x2, y2] that bounds all four input rectangles.
+    """
+
+    # Initialize the global bounding box coordinates
+    x1_global, y1_global, x2_global, y2_global = float('inf'), float('inf'), -float('inf'), -float('inf')
+
+    for i, prompt in enumerate(prompts_list):
+        # Extract the rectangle coordinates from the current prompt
+        x1, y1, x2, y2 = prompt["box"]
+
+        # Adjust the x-coordinates of the rectangle for the 256-pixel shifts
+        x1_adjusted = x1 + i * 256
+        x2_adjusted = x2 + i * 256
+
+        # Update the global bounding box coordinates
+        x1_global = min(x1_global, x1_adjusted)
+        y1_global = min(y1_global, y1)
+        x2_global = max(x2_global, x2_adjusted)
+        y2_global = max(y2_global, y2)
+
+    # Return the tightest bounding rectangle around all four rectangles
+    return [x1_global, y1_global, x2_global, y2_global]
+
+# Function to run segmentation on all four tiles
+def run_segmentation_on_tiles(img, gt_mask, dont_care_mask, weights_path, args):
+    img_tiles, gt_mask_tiles, dont_care_tiles = split_into_tiles(img, gt_mask, dont_care_mask)
+
+    global_masks_list = []
+    prompts_list = []
+
+    for i in range(4):
+        # Run segmentation on each tile
+        if np.any(gt_mask_tiles[i]):
+            segmenter = run_gui(img_tiles[i], weights_path, args, gt_mask_tiles[i], dont_care_mask=dont_care_tiles[i])
+        else:
+            global_masks_list.append([np.zeros([512,256], dtype=bool)])
+
+            continue
+
+        if args.point:
+            prompts = {"add": segmenter.add_pts, "remove": segmenter.remove_pts}
+        else:
+            prompts = {"box": segmenter.user_box}
+
+        # Append the global mask and prompts
+        global_masks_list.append(segmenter.masks)
+        prompts_list.append(prompts)
+
+    # Aggregate global masks back to original size
+    global_mask_aggregated = aggregate_masks(global_masks_list)
+    tightest_bounding_rect = unify_prompts(prompts_list)
+    tightest_bounding_rect = {"box": tightest_bounding_rect}
+    return [global_mask_aggregated], None, tightest_bounding_rect
+

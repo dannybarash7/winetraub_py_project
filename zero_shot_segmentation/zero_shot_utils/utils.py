@@ -281,8 +281,7 @@ def bounding_rectangle(array):
     y1, y2 = np.where(rows)[0][[0, -1]]
     # x1, x2 = np.where(cols)[0][[0, -1]]
     #expand by 20%
-    x1 = 0
-    x2 = array.shape[1]-1
+    x1, x2 = np.where(cols)[0][[0, -1]]
     y1 = y1 -5
     h = y2 - y1
     #0.2 CONFIG

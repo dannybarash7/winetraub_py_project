@@ -53,7 +53,7 @@ visualize_input_vhist = True
 segment_virtual_histology = False
 segment_real_histology = True
 segment_oct_flag = False
-continue_for_existing_images =False
+continue_for_existing_images = True
 #None or filename
 single_image_to_segment = None
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
