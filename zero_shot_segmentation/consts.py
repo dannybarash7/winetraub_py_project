@@ -1,14 +1,14 @@
 import os
 
-MEDSAM = True
+MEDSAM = False
 SAMMED_2D = False
-SAM = False
+SAM = True
 
 rf_api_key = "R04BinsZcBZ6PsfKR2fP"
 rf_workspace = "yolab-kmmfx"
-rf_project_name = "paper_data"
+rf_project_name = "paper_data_histology" #"paper_data"
 rf_dataset_type = "coco-segmentation"  # "png-mask-semantic"
-version = 7
+version = 2
 
 INTERACTIVE_POINT_PREDICTION = True
 DOWNSAMPLE_SAM_INPUT = False
@@ -27,6 +27,7 @@ TARGET_TISSUE_HEIGHT = 50
 ANNOTATED_DATA = True
 CONST_BOX = [0, 160, 1000, 400]
 NPOINTS_FOR_SEGMENTATION = 30
-
+MASK_SCALE_FACTOR = 0
+CROP_HISTOLOGY = True
 # ROBOFLOW_ANNOT_DATASET_DIR = "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/2024.4.30_83F_ST2_Cheek_10x_1_R2-1_CE/test"
-ROBOFLOW_ANNOT_DATASET_DIR  = os.path.join(os.getcwd(), f"./paper_data-{version}/test")
+ROBOFLOW_ANNOT_DATASET_DIR  = os.path.join(os.getcwd(), f"./{rf_project_name}-{version}/test")

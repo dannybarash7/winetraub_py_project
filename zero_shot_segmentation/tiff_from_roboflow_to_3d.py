@@ -32,7 +32,7 @@ from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLOR
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
 
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
-from zero_shot_segmentation.zero_shot_utils.predict_mask_on_oct_interactive import predict
+from zero_shot_segmentation.zero_shot_utils.predict_mask_on_oct_interactive import predict_oct
 from zero_shot_segmentation.zero_shot_utils.utils import single_or_multiple_predictions, extract_filename_prefix, \
     bounding_rectangle
 
@@ -77,7 +77,7 @@ def segment_histology(image_path, epidermis_mask, image_name, dont_care_mask, pr
     global total_iou_histology, total_dice_histology
     print("histology segmentation")
 
-    histology_mask, _, epidermis_mask, cropped_histology_image, n_points_used, warped_mask_true, prompts, crop_args = predict(
+    histology_mask, _, epidermis_mask, cropped_histology_image, n_points_used, warped_mask_true, prompts, crop_args = predict_oct(
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=False, prompts=prompts)
 
     dont_care_mask = crop(dont_care_mask, **crop_args)
@@ -136,7 +136,7 @@ def segment_histology(image_path, epidermis_mask, image_name, dont_care_mask, pr
 def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask):
     global output_image_dir, total_iou_vhist, total_dice_vhist
     print("OCT segmentation")
-    oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts, crop_args = predict(
+    oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts, crop_args = predict_oct(
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=False, dont_care_mask = dont_care_mask)
 
     fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_oct.npy'
@@ -192,7 +192,7 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompt
     # v. histology segmentation
     print("virtual histology segmentation")
     path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
-    cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts, crop_args = predict(
+    cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts, crop_args = predict_oct(
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=create_virtual_histology,
         output_vhist_path=path, prompts = prompts)
     fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_vhist.npy'

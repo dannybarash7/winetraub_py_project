@@ -28,12 +28,12 @@ from tqdm import tqdm
 
 from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask
-from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS, ANNOTATED_DATA, \
-    ROBOFLOW_ANNOT_DATASET_DIR
+from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, COLORS, ANNOTATED_DATA, \
+    ROBOFLOW_ANNOT_DATASET_DIR, CROP_HISTOLOGY
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
 
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
-from zero_shot_segmentation.zero_shot_utils.predict_mask_on_oct_interactive import predict
+from zero_shot_segmentation.zero_shot_utils.predict_mask_on_oct_interactive import predict_oct, predict_histology
 from zero_shot_segmentation.zero_shot_utils.utils import single_or_multiple_predictions, extract_filename_prefix, \
     bounding_rectangle
 
@@ -50,10 +50,10 @@ visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
 visualize_input_vhist = True
 
-segment_virtual_histology = True
+segment_virtual_histology = False
 segment_real_histology = True
-segment_oct_flag = True
-continue_for_existing_images =True
+segment_oct_flag = False
+continue_for_existing_images =False
 #None or filename
 single_image_to_segment = None
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
@@ -76,10 +76,10 @@ def segment_histology(image_path, epidermis_mask, image_name, dont_care_mask, pr
     global total_iou_histology, total_dice_histology
     print("histology segmentation")
 
-    histology_mask, _, epidermis_mask, cropped_histology_image, n_points_used, warped_mask_true, prompts, crop_args, _ = predict(
+    histology_mask, _, epidermis_mask, cropped_histology_image, n_points_used, warped_mask_true, prompts, crop_args= predict_histology(
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=False, prompts=prompts)
-
-    dont_care_mask = crop(dont_care_mask, **crop_args)
+    if CROP_HISTOLOGY:
+        dont_care_mask = crop(dont_care_mask, **crop_args)
     path = f'{os.path.join(output_image_dir, image_name)}_cropped_histology_image.png'
     # save image to disk
     cv2.imwrite(path, cropped_histology_image)
@@ -135,7 +135,7 @@ def segment_histology(image_path, epidermis_mask, image_name, dont_care_mask, pr
 def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask):
     global output_image_dir, total_iou_vhist, total_dice_vhist
     print("OCT segmentation")
-    oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts, crop_args , no_gel_oct = predict(
+    oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts, crop_args , no_gel_oct = predict_oct(
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=False, dont_care_mask = dont_care_mask)
 
     fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_oct.npy'
@@ -179,7 +179,7 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompt
     # v. histology segmentation
     print("virtual histology segmentation")
     path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
-    cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts, crop_args , no_gel_oct = predict(
+    cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts, crop_args , no_gel_oct = predict_oct(
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=segment_virtual_histology,
         output_vhist_path=path, prompts = prompts)
     fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_vhist.npy'
@@ -311,8 +311,13 @@ def main(args):
             epidermis_data = oct_data[oct_data.cat_name == "epidermis"].ann_segmentation.values[0][0]
             epidermis_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], epidermis_data)
             if 'hair' in oct_data.cat_name.unique():
-                dont_care_data = oct_data[oct_data.cat_name == "hair"].ann_segmentation.values[0][0]
-                dont_care_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], dont_care_data)
+                hair_annotations = oct_data[oct_data.cat_name == "hair"].ann_segmentation.values
+                dont_care_mask = numpy.zeros(roboflow_next_img.shape[:2], dtype=bool)
+
+                for hair_annotation in hair_annotations:
+                    hair_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], hair_annotation[0])
+                    dont_care_mask = dont_care_mask | hair_mask
+
                 epidermis_mask = epidermis_mask & (~dont_care_mask)
             else:
                 dont_care_mask = None

@@ -4,12 +4,14 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-from OCT2Hist_UseModel.utils.crop import crop_oct_for_pix2pix, crop
+from OCT2Hist_UseModel.utils.crop import crop_oct_for_pix2pix, crop, crop_histology_around_com
 from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale, gray_level_rescale_v2
 from OCT2Hist_UseModel.utils.masking import mask_gel_and_low_signal
 from OCT2Hist_UseModel import oct2hist
-from zero_shot_segmentation.consts import DOWNSAMPLE_SAM_INPUT, TARGET_TISSUE_HEIGHT
+from zero_shot_segmentation.consts import DOWNSAMPLE_SAM_INPUT, TARGET_TISSUE_HEIGHT, CROP_HISTOLOGY
 from zero_shot_segmentation.zero_shot_utils.run_sam_gui import run_gui_segmentation
+from zero_shot_segmentation.zero_shot_utils.utils import get_center_of_mass
+
 
 def warp_image(source_image, source_points, target_points):
     # Convert the input points to NumPy arrays
@@ -107,7 +109,7 @@ def get_gel_mask_from_masked_image(masked_gel_image):
     return raise_gel_mask
 
 
-def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None, dont_care_mask = None):
+def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None, dont_care_mask = None):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
     warped_mask_true = mask_true
@@ -159,6 +161,34 @@ def predict(oct_input_image_path, mask_true, weights_path, args, create_vhist = 
         virtual_histology_image = None
     # bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
     return segmentation, virtual_histology_image, cropped_histology_gt, cropped_oct_unscaled, points_used, warped_mask_true, prompts, crop_args, scaled_cropped_oct_without_gel
+
+def preprocess_histology(dont_care_mask, oct_image, warped_mask_true):
+    com_yx = get_center_of_mass(warped_mask_true)
+    com_xy = com_yx[1],com_yx[0]
+    cropped_histology, crop_args = crop_histology_around_com(oct_image,com_xy)
+    cropped_histology_gt = crop(warped_mask_true, **crop_args)
+    cropped_dont_care_mask = crop(dont_care_mask, **crop_args)
+    return crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_histology
+
+
+def predict_histology(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None, dont_care_mask = None):
+    # Load OCT image
+    histology_image = cv2.imread(oct_input_image_path)
+    warped_mask_true = mask_true
+    # OCT image's pixel size
+    microns_per_pixel_z = 1
+    microns_per_pixel_x = 1
+    # for good input points, we need the gel masked out.
+    if CROP_HISTOLOGY:
+        crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_histology = preprocess_histology(dont_care_mask, histology_image,
+                                                                                              warped_mask_true)
+    else:
+        crop_args = {"target_width": 1024, "target_height": 512, "x0": 0, "z0": 0}
+        cropped_dont_care_mask, cropped_histology_gt, cropped_histology = dont_care_mask, warped_mask_true, histology_image
+    segmentation, points_used, prompts = run_gui_segmentation(cropped_histology, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
+    virtual_histology_image = None
+    # bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
+    return segmentation, virtual_histology_image, cropped_histology_gt, cropped_histology, points_used, warped_mask_true, prompts, crop_args
 
 
 def preprocess_oct(dont_care_mask, oct_image, warped_mask_true):

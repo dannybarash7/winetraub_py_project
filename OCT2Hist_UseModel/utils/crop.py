@@ -57,3 +57,12 @@ def crop_oct_for_pix2pix(input_image, y_tissue_top, delta):
     coords = {"target_width":target_width, "target_height":target_height,"x0":x0,"z0":z0}
     cropped_img = crop(input_image, **coords)
     return cropped_img , coords
+
+def crop_histology_around_com(input_image, com):
+    target_width = 1024
+    target_height = 512
+    x0 = int(max(com[0] - target_width/2,0))
+    z0 = int(max(com[1] - target_height/2,0))
+    coords = {"target_width":target_width, "target_height":target_height,"x0":x0,"z0":z0}
+    cropped_img = crop(input_image, **coords)
+    return cropped_img , coords
