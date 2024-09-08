@@ -29,7 +29,7 @@ from tqdm import tqdm
 from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask
 from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, COLORS, ANNOTATED_DATA, \
-    ROBOFLOW_ANNOT_DATASET_DIR, CROP_HISTOLOGY
+    ROBOFLOW_ANNOT_DATASET_DIR, CROP_HISTOLOGY, RUN_FIVE_TIMES
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
 
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
