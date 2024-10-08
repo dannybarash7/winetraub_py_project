@@ -50,10 +50,10 @@ visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
 visualize_input_vhist = True
 
-segment_virtual_histology = False
-segment_real_histology = True
-segment_oct_flag = False
-continue_for_existing_images = True
+segment_virtual_histology = True
+segment_real_histology = False
+segment_oct_flag = True
+continue_for_existing_images = False
 #None or filename
 single_image_to_segment = None
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
@@ -65,7 +65,7 @@ raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-danny
 if MEDSAM:
     CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/medsam/MedSAM/work_dir/MedSAM/medsam_vit_b.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 if SAM:
-    CHECKPOINT_PATH = "weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    CHECKPOINT_PATH = "weights/sam_vit_b_01ec64.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 if SAMMED_2D:
     CHECKPOINT_PATH = None
 

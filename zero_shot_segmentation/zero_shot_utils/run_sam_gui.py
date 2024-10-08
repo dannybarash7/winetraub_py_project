@@ -129,7 +129,8 @@ class Segmenter():
             if MEDSAM:
                 self.sam = sam_model_registry["vit_b"](checkpoint=weights_path)
             if SAM:
-                self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
+                # self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
+                self.sam = sam_model_registry["vit_b"](checkpoint=weights_path)
             if not grid_prediction_flag:
                 if MEDSAM or SAM:
                     self.predictor = SamPredictor(self.sam)

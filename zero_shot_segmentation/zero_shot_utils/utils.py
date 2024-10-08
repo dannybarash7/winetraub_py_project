@@ -282,7 +282,6 @@ def bounding_rectangle(array):
     # x1, x2 = np.where(cols)[0][[0, -1]]
     #expand by 20%
     x1, x2 = np.where(cols)[0][[0, -1]]
-    y1 = y1 -5
     h = y2 - y1
     #0.2 CONFIG
     y2 = y2 + MASK_SCALE_FACTOR * h
