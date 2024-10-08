@@ -27,7 +27,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from OCT2Hist_UseModel.utils.crop import crop
-from OCT2Hist_UseModel.utils.masking import show_mask
+from OCT2Hist_UseModel.utils.masking import show_mask, boolean_mask_image_to_boolean_outline_image
 from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, COLORS, ANNOTATED_DATA, \
     ROBOFLOW_ANNOT_DATASET_DIR, CROP_HISTOLOGY, RUN_FIVE_TIMES
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
@@ -167,7 +167,7 @@ def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask):
         if visualize_pred_vs_gt_oct:
             visualize_prediction_with_score(best_mask, cropped_histology_gt, dont_care_mask, no_gel_oct, dice, image_name, output_image_dir,
                                             prompts, ext="oct_pred")
-            visualize_prediction(best_mask, no_gel_oct, image_name, output_image_dir, ext="oct_pred")
+            visualize_prediction_with_outline(best_mask, cropped_histology_gt, no_gel_oct, image_name, output_image_dir, ext="oct_pred")
             if no_gel_oct is not None:
                 fpath = f'{os.path.join(output_image_dir, image_name)}_{"oct_no_gel"}'
                 cv2.imwrite(f'{fpath}.png', no_gel_oct)
@@ -237,7 +237,7 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompt
         visualize_prediction_with_score(best_mask, cropped_vhist_mask_true, dont_care_mask, no_gel_oct, dice, image_name, output_image_dir,
                                         prompts, ext="vhist_pred_over_oct")
         visualize_prediction(best_mask, cropped_vhist, image_name, output_image_dir, ext="vhist_pred")
-        visualize_prediction(best_mask, no_gel_oct, image_name, output_image_dir, ext="vhist_pred_over_oct")
+        visualize_prediction_with_outline(best_mask, cropped_vhist_mask_true, no_gel_oct, image_name, output_image_dir, ext="vhist_pred_over_oct")
 
 def does_column_exist(oct_fname, domain_dice_str): #domain_dice_str = "dice_oct" | "dice_vhist" | "dice_histology"
     sample_name = extract_filename_prefix(oct_fname)
@@ -401,6 +401,24 @@ def handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_d
     file_path = os.path.join(output_image_dir, 'p_value.txt')
     with open(file_path, 'w+') as file:
         file.write(str_to_save)
+
+
+def visualize_prediction_with_outline(best_mask, gt_mask, cropped_oct_image, image_name, output_image_dir, ext):
+    best_mask = best_mask.astype(bool)
+    overlay = cropped_oct_image.copy()
+    color_orange  = (8, 128,255)
+    color_green = (0,255,128)
+    color_blue = (255,128,0)
+    if "vhist_pred_over_oct" in ext:
+        overlay[best_mask] = color_orange
+    else:
+        overlay[best_mask] = color_blue
+    gt_outline = boolean_mask_image_to_boolean_outline_image(gt_mask)
+    overlay[gt_outline] = color_green
+    alpha = 0.4
+    overlayed_image = cv2.addWeighted(overlay, alpha, cropped_oct_image, 1 - alpha, 0)
+    fpath = f'{os.path.join(output_image_dir, image_name)}_{ext}.png'
+    cv2.imwrite(fpath, overlayed_image)
 
 def visualize_prediction(best_mask, cropped_oct_image, image_name, output_image_dir, ext):
     best_mask = best_mask.astype(bool)
