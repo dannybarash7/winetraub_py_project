@@ -10,6 +10,8 @@ from dataclasses_json import dataclass_json
 import supervision as sv
 from supervision import Detections
 
+from zero_shot_segmentation.consts import MASK_SCALE_FACTOR
+
 
 def score_masking(masks2, segmentation_mask):
     masks = sorted(masks2, key=lambda x: x['area'], reverse=True)
@@ -277,7 +279,14 @@ def expand_bounding_rectangle(array, rect_shape):
 def bounding_rectangle(array):
     rows, cols = np.any(array, axis=1), np.any(array, axis=0)
     y1, y2 = np.where(rows)[0][[0, -1]]
+    # x1, x2 = np.where(cols)[0][[0, -1]]
+    #expand by 20%
     x1, x2 = np.where(cols)[0][[0, -1]]
+    y1 = y1 -5
+    h = y2 - y1
+    #0.2 CONFIG
+    y2 = y2 + MASK_SCALE_FACTOR * h
+    y2 = int(min(y2, array.shape[0]))
     return np.array([x1,y1,x2,y2])
 
 
