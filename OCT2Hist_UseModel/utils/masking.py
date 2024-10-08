@@ -336,6 +336,18 @@ def apply_closing_operation(mask):
   binary_result = closing_result.astype(bool)
   return binary_result
 
+def boolean_mask_image_to_boolean_outline_image(mask):
+  # color_np = np.array(color_arr)
+  mask_8bit = mask.astype(np.uint8)
+  contours, _ = cv2.findContours(mask_8bit.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+  # Create an empty image for visualization
+  outline_image = np.zeros_like(mask_8bit)
+  # Draw the contours on the empty image
+  cv2.drawContours(outline_image, contours, -1, (255), thickness=4)
+  outline_image = outline_image.astype(np.bool_)
+  # h, w = mask.shape[-2:]
+  # mask_image = mask.reshape(h, w, 1) * color_np.reshape(1, 1, -1)
+  return outline_image
 
 def show_mask(mask, ax, color_arr, outline = False):
     color_np  = np.array(color_arr)
