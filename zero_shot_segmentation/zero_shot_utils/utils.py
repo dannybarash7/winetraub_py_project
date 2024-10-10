@@ -366,5 +366,7 @@ def extract_filename_prefix(filename):
     # Remove the "_jpg" part if it exists
     if prefix.endswith('_jpg'):
         prefix = prefix[:-4]
+    if prefix.endswith('_png'):
+        prefix = prefix[:-4]
 
     return prefix

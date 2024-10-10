@@ -55,7 +55,7 @@ segment_real_histology = False
 segment_oct_flag = True
 continue_for_existing_images = False
 #None or filename
-single_image_to_segment = "LE-03-Slide03_Section03_yp0_A"
+single_image_to_segment = None
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
 
 # CONFIG
@@ -179,9 +179,10 @@ def segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompt
     # v. histology segmentation
     print("virtual histology segmentation")
     path = f'{os.path.join(output_image_dir, image_name)}_cropped_vhist_image.png'
+    vhist_path = os.path.join("/Users/dannybarash/Code/oct/paper_code/3d_segmentation/BCC/67M_BCC_ST3_Cheek_2021.10.6_4_vhist",image_name+".png")
     cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used, warped_vhist_mask_true, prompts, crop_args , no_gel_oct = predict_oct(
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=segment_virtual_histology,
-        output_vhist_path=path, prompts = prompts)
+        output_vhist_path=path, prompts = prompts, vhist_path=vhist_path)
     fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_vhist.npy'
     with open(fpath, 'wb+') as f:
         numpy.save(f, cropped_vhist_mask[0])  # a = numpy.load(fpath)
@@ -305,6 +306,9 @@ def main(args):
         image_name = extract_filename_prefix(oct_fname)
         print(f"\nimage number {i}: {image_name}")
         image_path = os.path.join(roboflow_annot_dataset_dir, oct_fname)
+        updated_rf_dir = "/Users/dannybarash/Code/oct/paper_code/3d_segmentation/BCC/67M_BCC_ST3_Cheek_2021.10.6_4"
+        updated_oct_fname = f"frame_{i*5:04}.png"
+        image_path = os.path.join(updated_rf_dir, updated_oct_fname)
         roboflow_next_img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
         if ANNOTATED_DATA:
             oct_data = dataset.df[dataset.df.img_filename == oct_fname]

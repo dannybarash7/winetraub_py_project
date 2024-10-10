@@ -109,7 +109,7 @@ def get_gel_mask_from_masked_image(masked_gel_image):
     return raise_gel_mask
 
 
-def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None, dont_care_mask = None):
+def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None, dont_care_mask = None, vhist_path = None):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
     warped_mask_true = mask_true
@@ -123,39 +123,41 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
     if create_vhist:
 
         # run vh&e
-
-        virtual_histology_image, _, o2h_input = oct2hist.run_network(cropped_oct_unscaled,
-                                                                     microns_per_pixel_x=microns_per_pixel_x,
-                                                                     microns_per_pixel_z=microns_per_pixel_z)
+        if vhist_path is None:
+            virtual_histology_image, _, _ = oct2hist.run_network(cropped_oct_unscaled,
+                                                                         microns_per_pixel_x=microns_per_pixel_x,
+                                                                         microns_per_pixel_z=microns_per_pixel_z)
+        else:
+            virtual_histology_image = cv2.imread(vhist_path, cv2.IMREAD_UNCHANGED)
         #take the R channel
         # virtual_histology_image = cv2.cvtColor(virtual_histology_image,cv2.COLOR_BGR2RGB)
 
         if output_vhist_path:
             cv2.imwrite(output_vhist_path, virtual_histology_image)
 
-        if DOWNSAMPLE_SAM_INPUT:
-            virtual_histology_image_copy = virtual_histology_image.copy()
-            cropped_histology_gt_copy = cropped_histology_gt.copy()
-            blurred_image = cv2.GaussianBlur(virtual_histology_image, (0, 0), 4)
-            downsampled_image = cv2.resize(blurred_image, None, fx=0.25, fy=0.25)
-
-            downscaled_img = cv2.resize(cropped_histology_gt.astype('float32'), None, fx=1 / 4,
-                                        fy=1 / 4, interpolation=cv2.INTER_NEAREST)
-
-            # Convert back to boolean image
-            cropped_histology_gt = downscaled_img.astype('bool')
-
-            # downscaled_img = cv2.resize(binary_img, None, fx=1/downscale_factor, fy=1/downscale_factor, interpolation=cv2.INTER_NEAREST)
-            virtual_histology_image = downsampled_image
+        # if DOWNSAMPLE_SAM_INPUT:
+        #     virtual_histology_image_copy = virtual_histology_image.copy()
+        #     cropped_histology_gt_copy = cropped_histology_gt.copy()
+        #     blurred_image = cv2.GaussianBlur(virtual_histology_image, (0, 0), 4)
+        #     downsampled_image = cv2.resize(blurred_image, None, fx=0.25, fy=0.25)
+        #
+        #     downscaled_img = cv2.resize(cropped_histology_gt.astype('float32'), None, fx=1 / 4,
+        #                                 fy=1 / 4, interpolation=cv2.INTER_NEAREST)
+        #
+        #     # Convert back to boolean image
+        #     cropped_histology_gt = downscaled_img.astype('bool')
+        #
+        #     # downscaled_img = cv2.resize(binary_img, None, fx=1/downscale_factor, fy=1/downscale_factor, interpolation=cv2.INTER_NEAREST)
+        #     virtual_histology_image = downsampled_image
 
         segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
-        if DOWNSAMPLE_SAM_INPUT:
-            assert(len(segmentation) == 1)
-            segmentation = cv2.resize(segmentation[0].astype('float32'), (0, 0), fx=4, fy=4, interpolation=cv2.INTER_NEAREST)
-            segmentation = [segmentation.astype('bool')]
-            cropped_histology_gt = cropped_histology_gt_copy
-            virtual_histology_image = virtual_histology_image_copy
-            prompts["box"] = prompts["box"] * 4
+        # if DOWNSAMPLE_SAM_INPUT:
+        #     assert(len(segmentation) == 1)
+        #     segmentation = cv2.resize(segmentation[0].astype('float32'), (0, 0), fx=4, fy=4, interpolation=cv2.INTER_NEAREST)
+        #     segmentation = [segmentation.astype('bool')]
+        #     cropped_histology_gt = cropped_histology_gt_copy
+        #     virtual_histology_image = virtual_histology_image_copy
+        #     prompts["box"] = prompts["box"] * 4
     else:
         segmentation, points_used, prompts = run_gui_segmentation(scaled_cropped_oct_without_gel, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
         virtual_histology_image = None
@@ -204,12 +206,11 @@ def preprocess_oct(dont_care_mask, oct_image, warped_mask_true):
     else:
         delta = 0
     #CONFIG - should the cropped OCT be rescaled for vhist or not? oct_image/rescaled?
+
     cropped_oct_unscaled, crop_args = crop_oct_for_pix2pix(oct_image, y_tissue_top, delta)
     cropped_histology_gt = crop(warped_mask_true, **crop_args)
     scaled_cropped_oct_without_gel = crop(oct_without_gel, **crop_args)
     cropped_dont_care_mask = crop(dont_care_mask, **crop_args)
-
-
     return crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_oct_unscaled, scaled_cropped_oct_without_gel
 
 def get_y_center_of_tissue(oct_image):
