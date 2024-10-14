@@ -8,7 +8,7 @@ from OCT2Hist_UseModel.utils.crop import crop_oct_for_pix2pix, crop, crop_histol
 from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale, gray_level_rescale_v2
 from OCT2Hist_UseModel.utils.masking import mask_gel_and_low_signal
 from OCT2Hist_UseModel import oct2hist
-from zero_shot_segmentation.consts import DOWNSAMPLE_SAM_INPUT, TARGET_TISSUE_HEIGHT, CROP_HISTOLOGY
+from zero_shot_segmentation.consts import DOWNSAMPLE_SAM_INPUT, CROP_HISTOLOGY, GEL_BOTTOM_ROW
 from zero_shot_segmentation.zero_shot_utils.run_sam_gui import run_gui_segmentation
 from zero_shot_segmentation.zero_shot_utils.utils import get_center_of_mass
 
@@ -84,44 +84,41 @@ def is_trapezoid_image(oct_image):
         return True
 
 
-def raise_mask(gel_mask, by = 5):
+def erode_mask(gel_mask, by = 5):
     # Convert the boolean array to an 8-bit integer array
     int_array = gel_mask.astype(np.uint8)
-
-    # Define the dilation kernel
     kernel = np.ones((by, by), np.uint8)  # 3x3 kernel for dilation
-
-    # Apply the cv2.dilate function
-    dilated_array = cv2.erode(int_array, kernel, iterations=1)
-
+    int_array = cv2.erode(int_array, kernel, iterations=1)
+    # dilated_array = cv2.dilate(eroded_array, kernel, iterations=1)
     # Optionally, convert the result back to a boolean array
-    return dilated_array.astype(bool)
+    return int_array.astype(bool)
 
 
 def get_gel_mask_from_masked_image(masked_gel_image):
     masked_gel_image = masked_gel_image[:,:,0]
     row_indices = np.indices(masked_gel_image.shape)[0]
     h = masked_gel_image.shape[0]
-    above_middle_image = row_indices < h/2
+    if GEL_BOTTOM_ROW is not None:
+        top_30p = row_indices < GEL_BOTTOM_ROW
+    else:
+        top_30p = row_indices < h/3
     black_pixels = masked_gel_image == 0
-    gel_mask = np.logical_and(above_middle_image, black_pixels)
-    raise_gel_mask = raise_mask(gel_mask, by = 21)
-    return raise_gel_mask
+    gel_mask = np.logical_and(top_30p, black_pixels)
+    eroded_mask = erode_mask(gel_mask, by = 21)
+    return eroded_mask
 
 
-def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None, dont_care_mask = None, vhist_path = None):
+def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None, dont_care_mask = None, vhist_path = None, bcc_mask_true = None):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
-    warped_mask_true = mask_true
     # OCT image's pixel size
     microns_per_pixel_z = 1
     microns_per_pixel_x = 1
     # for good input points, we need the gel masked out.
-    crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_oct_unscaled, scaled_cropped_oct_without_gel = preprocess_oct(dont_care_mask, oct_image,
-                                                                                          warped_mask_true)
+    crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_oct_unscaled, scaled_cropped_oct_without_gel,cropped_bcc_mask_true = preprocess_oct(dont_care_mask, oct_image,
+                                                                                                                                   mask_true, bcc_mask_true)
 
     if create_vhist:
-
         # run vh&e
         if vhist_path is None:
             virtual_histology_image, _, _ = oct2hist.run_network(cropped_oct_unscaled,
@@ -135,34 +132,24 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
         if output_vhist_path:
             cv2.imwrite(output_vhist_path, virtual_histology_image)
 
-        # if DOWNSAMPLE_SAM_INPUT:
-        #     virtual_histology_image_copy = virtual_histology_image.copy()
-        #     cropped_histology_gt_copy = cropped_histology_gt.copy()
-        #     blurred_image = cv2.GaussianBlur(virtual_histology_image, (0, 0), 4)
-        #     downsampled_image = cv2.resize(blurred_image, None, fx=0.25, fy=0.25)
-        #
-        #     downscaled_img = cv2.resize(cropped_histology_gt.astype('float32'), None, fx=1 / 4,
-        #                                 fy=1 / 4, interpolation=cv2.INTER_NEAREST)
-        #
-        #     # Convert back to boolean image
-        #     cropped_histology_gt = downscaled_img.astype('bool')
-        #
-        #     # downscaled_img = cv2.resize(binary_img, None, fx=1/downscale_factor, fy=1/downscale_factor, interpolation=cv2.INTER_NEAREST)
-        #     virtual_histology_image = downsampled_image
-
+        #segment the epidermis
         segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
-        # if DOWNSAMPLE_SAM_INPUT:
-        #     assert(len(segmentation) == 1)
-        #     segmentation = cv2.resize(segmentation[0].astype('float32'), (0, 0), fx=4, fy=4, interpolation=cv2.INTER_NEAREST)
-        #     segmentation = [segmentation.astype('bool')]
-        #     cropped_histology_gt = cropped_histology_gt_copy
-        #     virtual_histology_image = virtual_histology_image_copy
-        #     prompts["box"] = prompts["box"] * 4
+        if bcc_mask_true is not None:
+        #segment the bcc
+            bcc_segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path,
+                                                                          gt_mask=cropped_bcc_mask_true, args=args,
+                                                                          prompts=prompts,
+                                                                          dont_care_mask=cropped_dont_care_mask)
+        else:
+            bcc_segmentation = None
+
     else:
         segmentation, points_used, prompts = run_gui_segmentation(scaled_cropped_oct_without_gel, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
         virtual_histology_image = None
+        bcc_segmentation = None
+        cropped_bcc_mask_true = None
     # bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
-    return segmentation, virtual_histology_image, cropped_histology_gt, cropped_oct_unscaled, points_used, warped_mask_true, prompts, crop_args, scaled_cropped_oct_without_gel
+    return segmentation, virtual_histology_image, cropped_histology_gt, cropped_oct_unscaled, points_used, mask_true, prompts, crop_args, scaled_cropped_oct_without_gel, bcc_segmentation,cropped_bcc_mask_true
 
 def preprocess_histology(dont_care_mask, oct_image, warped_mask_true):
     com_yx = get_center_of_mass(warped_mask_true)
@@ -193,25 +180,26 @@ def predict_histology(oct_input_image_path, mask_true, weights_path, args, creat
     return segmentation, virtual_histology_image, cropped_histology_gt, cropped_histology, points_used, warped_mask_true, prompts, crop_args
 
 
-def preprocess_oct(dont_care_mask, oct_image, warped_mask_true):
+def preprocess_oct(dont_care_mask, oct_image, warped_mask_true,bcc_mask_true):
     rescaled = gray_level_rescale_v2(oct_image)
     tissue_image, low_signal_masked_image = mask_gel_and_low_signal(oct_image)
     gel_mask = get_gel_mask_from_masked_image(tissue_image)
     oct_without_gel = rescaled.copy()
     oct_without_gel[gel_mask != 0] = 0
-    y_tissue_top = get_y_min_of_tissue(tissue_image)
-    if y_tissue_top > TARGET_TISSUE_HEIGHT:
-        #CONFIG
-        delta = 80#y_tissue_top - TARGET_TISSUE_HEIGHT
-    else:
-        delta = 0
+    # y_tissue_top = get_y_min_of_tissue(tissue_image)
+    # if y_tissue_top > TARGET_TISSUE_HEIGHT:
+    #     #CONFIG
+    #     delta = 80#y_tissue_top - TARGET_TISSUE_HEIGHT
+    # else:
+    #     delta = 0
     #CONFIG - should the cropped OCT be rescaled for vhist or not? oct_image/rescaled?
 
-    cropped_oct_unscaled, crop_args = crop_oct_for_pix2pix(oct_image, y_tissue_top, delta)
+    cropped_oct_unscaled, crop_args = crop_oct_for_pix2pix(oct_image)
     cropped_histology_gt = crop(warped_mask_true, **crop_args)
     scaled_cropped_oct_without_gel = crop(oct_without_gel, **crop_args)
     cropped_dont_care_mask = crop(dont_care_mask, **crop_args)
-    return crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_oct_unscaled, scaled_cropped_oct_without_gel
+    cropped_bcc_mask_true = crop(bcc_mask_true, **crop_args)
+    return crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_oct_unscaled, scaled_cropped_oct_without_gel,cropped_bcc_mask_true
 
 def get_y_center_of_tissue(oct_image):
     non_zero_coords = np.column_stack(np.where(oct_image > 0))
