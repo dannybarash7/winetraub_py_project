@@ -172,37 +172,37 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
 
     if create_vhist:
         # run vh&e
-        if not os.path.exists(vhist_path):
-            # virtual_histology_image, _, _ = oct2hist.run_network(cropped_oct_unscaled,
-            #                                                              microns_per_pixel_x=microns_per_pixel_x,
-            #                                                              microns_per_pixel_z=microns_per_pixel_z)
-            raise Exception("Vhist path")
+        virtual_histology_image, _, _ = oct2hist.run_network(cropped_oct_unscaled,
+                                                                     microns_per_pixel_x=microns_per_pixel_x,
+                                                                     microns_per_pixel_z=microns_per_pixel_z)
 
-        else:
-            print("DEBUG: using vhist path", vhist_path)
-            virtual_histology_image = cv2.imread(vhist_path, cv2.IMREAD_UNCHANGED)
-
-            if output_vhist_path:
-                cv2.imwrite(output_vhist_path, virtual_histology_image)
-            #crop top black part
-            # top_line = top_half_bottom_most_black_row(virtual_histology_image)
-            # if top_line>0:
-            #     # Remove the first 40 lines
-            #     image_cropped = virtual_histology_image[top_line:, :]
-            #     # Create a black padding (40 rows of zeros)
-            #     black_padding = np.zeros((top_line, image_cropped.shape[1], image_cropped.shape[2]), dtype=np.uint8)
-            #     # Add the black padding at the bottom
-            #     virtual_histology_image = np.vstack((image_cropped, black_padding))
-            # Split the path into directory, base filename, and extension
-            directory, filename = os.path.split(output_vhist_path)
-            name, ext = os.path.splitext(filename)
-
-            # Append "original" before the file extension
-            new_filename = f"{name}_aligned.{ext}"
-            # Join the directory with the new filename to get the full path
-            new_file_path = os.path.join(directory, new_filename)
-            if output_vhist_path:
-                cv2.imwrite(new_file_path, virtual_histology_image)
+        # else:
+        #     print("DEBUG: using vhist path", vhist_path)
+        #     virtual_histology_image = cv2.imread(vhist_path, cv2.IMREAD_UNCHANGED)
+        #
+        #     if output_vhist_path:
+        #         cv2.imwrite(output_vhist_path, virtual_histology_image)
+        #     #crop top black part
+        #     # top_line = top_half_bottom_most_black_row(virtual_histology_image)
+        #     # if top_line>0:
+        #     #     # Remove the first 40 lines
+        #     #     image_cropped = virtual_histology_image[top_line:, :]
+        #     #     # Create a black padding (40 rows of zeros)
+        #     #     black_padding = np.zeros((top_line, image_cropped.shape[1], image_cropped.shape[2]), dtype=np.uint8)
+        #     #     # Add the black padding at the bottom
+        #     #     virtual_histology_image = np.vstack((image_cropped, black_padding))
+        #     # Split the path into directory, base filename, and extension
+        #     directory, filename = os.path.split(output_vhist_path)
+        #     name, ext = os.path.splitext(filename)
+        #
+        #     # Append "original" before the file extension
+        #     new_filename = f"{name}_aligned.{ext}"
+        #     # Join the directory with the new filename to get the full path
+        #     new_file_path = os.path.join(directory, new_filename)
+        #     if output_vhist_path:
+        #         cv2.imwrite(new_file_path, virtual_histology_image)
+        if output_vhist_path:
+            cv2.imwrite(output_vhist_path, virtual_histology_image)
         cropped_bcc_mask_true = crop_mask_to_non_black_values(cropped_bcc_mask_true, virtual_histology_image)
         # cropped_bcc_mask_true = crop_mask_x_percent_from_left(cropped_bcc_mask_true, x=30)
 
