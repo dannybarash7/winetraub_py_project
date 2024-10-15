@@ -9,7 +9,7 @@ from OCT2Hist_UseModel.utils.crop import crop_oct_for_pix2pix, crop, crop_histol
 from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale, gray_level_rescale_v2
 from OCT2Hist_UseModel.utils.masking import mask_gel_and_low_signal
 from OCT2Hist_UseModel import oct2hist
-from zero_shot_segmentation.consts import DOWNSAMPLE_SAM_INPUT, CROP_HISTOLOGY, GEL_BOTTOM_ROW
+from zero_shot_segmentation.consts import DOWNSAMPLE_SAM_INPUT, CROP_HISTOLOGY, GEL_BOTTOM_ROW, APPLY_MASKING
 from zero_shot_segmentation.zero_shot_utils.run_sam_gui import run_gui_segmentation
 from zero_shot_segmentation.zero_shot_utils.utils import get_center_of_mass
 
@@ -174,7 +174,7 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
         # run vh&e
         virtual_histology_image, _, _ = oct2hist.run_network(cropped_oct_unscaled,
                                                                      microns_per_pixel_x=microns_per_pixel_x,
-                                                                     microns_per_pixel_z=microns_per_pixel_z)
+                                                                     microns_per_pixel_z=microns_per_pixel_z, apply_masking=APPLY_MASKING)
 
         # else:
         #     print("DEBUG: using vhist path", vhist_path)
@@ -203,7 +203,8 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
         #         cv2.imwrite(new_file_path, virtual_histology_image)
         if output_vhist_path:
             cv2.imwrite(output_vhist_path, virtual_histology_image)
-        cropped_bcc_mask_true = crop_mask_to_non_black_values(cropped_bcc_mask_true, virtual_histology_image)
+        if cropped_bcc_mask_true.any():
+            cropped_bcc_mask_true = crop_mask_to_non_black_values(cropped_bcc_mask_true, virtual_histology_image)
         # cropped_bcc_mask_true = crop_mask_x_percent_from_left(cropped_bcc_mask_true, x=30)
 
         #take the R channel

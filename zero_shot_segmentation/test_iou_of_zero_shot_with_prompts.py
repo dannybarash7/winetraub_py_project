@@ -387,6 +387,15 @@ def main(args):
         if visualize_input_gt:
             plt.figure(figsize=(5, 5))
             plt.imshow(roboflow_next_img, cmap='gray')
+            show_mask(epidermis_mask, plt.gca(), color_arr=COLORS.PREDICTED_EPIDERMISE_BLUE)
+            plt.axis('off')
+            plt.suptitle(f"Input oct and ground truth mask")
+            plt.title(f"{image_name}")
+            plt.savefig(f'{os.path.join(output_image_dir, image_name)}_input_gt.png')
+            plt.close('all')
+        if visualize_input_gt and bcc_mask is not None:
+            plt.figure(figsize=(5, 5))
+            plt.imshow(roboflow_next_img, cmap='gray')
             show_mask(bcc_mask, plt.gca(), color_arr=COLORS.PREDICTED_EPIDERMISE_BLUE)
             plt.axis('off')
             plt.suptitle(f"Input oct and ground truth mask")
