@@ -1,4 +1,5 @@
 import os
+from copy import deepcopy
 
 import cv2
 import matplotlib.pyplot as plt
@@ -108,6 +109,56 @@ def get_gel_mask_from_masked_image(masked_gel_image):
     return eroded_mask
 
 
+def top_half_bottom_most_black_row(virtual_histology_image):
+    gray_hist = cv2.cvtColor(virtual_histology_image, cv2.COLOR_BGR2GRAY)
+    # Convert image to grayscale (if all channels are 0, grayscale will also be 0)
+    # Sum across each row and find where the sum is 0 (indicating all zeros in that row)
+    h,w,c = virtual_histology_image.shape
+    gray_hist[int(h/2):,0]=1 #prevent sum to be 0 at bottom half of the image
+    row_sums = np.sum(gray_hist, axis=1)
+    zero_rows = np.where(row_sums == 0)[0]
+    if zero_rows.size > 0:
+        topmost_zero_row = zero_rows[-1]
+    else:
+        topmost_zero_row = -1
+    return topmost_zero_row
+
+
+def crop_mask_x_percent_from_left(cropped_bcc_mask_true,x=10):
+    coords = np.argwhere(cropped_bcc_mask_true)
+
+    y_min, x_min = coords.min(axis=0)
+    y_max, x_max = coords.max(axis=0)
+    new_x_min = x_min+int(x/100*(x_max-x_min))
+    cropped_bcc_mask_true[:,x_min:new_x_min] = False
+    return cropped_bcc_mask_true
+def crop_mask_to_non_black_values(cropped_bcc_mask_true, virtual_histology_image):
+    gray_hist = cv2.cvtColor(virtual_histology_image, cv2.COLOR_BGR2GRAY)
+    coords = np.argwhere(cropped_bcc_mask_true)
+
+    y_min, x_min = coords.min(axis=0)
+    y_max, x_max = coords.max(axis=0)
+
+    # Crop image A according to the bounding box from mask B
+    gray_hist = gray_hist[y_min:y_max + 1, x_min:x_max + 1]
+    # Convert image to grayscale (if all channels are 0, grayscale will also be 0)
+    # Sum across each row and find where the sum is 0 (indicating all zeros in that row)
+    row_sums = np.sum(gray_hist, axis=1)
+
+    # Find the topmost row where the sum is 0
+    zero_rows = np.where(row_sums == 0)[0]
+    updated_mask = deepcopy(cropped_bcc_mask_true)
+    if zero_rows.size > 0:
+        topmost_zero_row = zero_rows[0] + y_min    # assuming below tissue black aread
+        updated_mask[topmost_zero_row:,:] = False
+    # col_sums = np.sum(gray_hist, axis=0)
+    # zero_cols = np.where(col_sums == 0)[0]
+    # if zero_cols.size > 0:
+    #     left_most_zero_column = zero_cols[0] + x_min   #assuming right of tissue black aread
+    #     updated_mask[:,left_most_zero_column:] = False
+    return updated_mask
+
+
 def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None, dont_care_mask = None, vhist_path = None, bcc_mask_true = None):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
@@ -117,6 +168,7 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
     # for good input points, we need the gel masked out.
     crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_oct_unscaled, scaled_cropped_oct_without_gel,cropped_bcc_mask_true = preprocess_oct(dont_care_mask, oct_image,
                                                                                                                                    mask_true, bcc_mask_true)
+    
 
     if create_vhist:
         # run vh&e
@@ -129,25 +181,41 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
         else:
             print("DEBUG: using vhist path", vhist_path)
             virtual_histology_image = cv2.imread(vhist_path, cv2.IMREAD_UNCHANGED)
-            # Remove the first 40 lines
-            image_cropped = virtual_histology_image[40:, :]
 
-            # Create a black padding (40 rows of zeros)
-            black_padding = np.zeros((40, image_cropped.shape[1], image_cropped.shape[2]), dtype=np.uint8)
+            if output_vhist_path:
+                cv2.imwrite(output_vhist_path, virtual_histology_image)
+            #crop top black part
+            # top_line = top_half_bottom_most_black_row(virtual_histology_image)
+            # if top_line>0:
+            #     # Remove the first 40 lines
+            #     image_cropped = virtual_histology_image[top_line:, :]
+            #     # Create a black padding (40 rows of zeros)
+            #     black_padding = np.zeros((top_line, image_cropped.shape[1], image_cropped.shape[2]), dtype=np.uint8)
+            #     # Add the black padding at the bottom
+            #     virtual_histology_image = np.vstack((image_cropped, black_padding))
+            # Split the path into directory, base filename, and extension
+            directory, filename = os.path.split(output_vhist_path)
+            name, ext = os.path.splitext(filename)
 
-            # Add the black padding at the bottom
-            image_padded = np.vstack((image_cropped, black_padding))
-            cv2.imwrite(output_vhist_path, image_padded)
+            # Append "original" before the file extension
+            new_filename = f"{name}_aligned.{ext}"
+            # Join the directory with the new filename to get the full path
+            new_file_path = os.path.join(directory, new_filename)
+            if output_vhist_path:
+                cv2.imwrite(new_file_path, virtual_histology_image)
+        cropped_bcc_mask_true = crop_mask_to_non_black_values(cropped_bcc_mask_true, virtual_histology_image)
+        # cropped_bcc_mask_true = crop_mask_x_percent_from_left(cropped_bcc_mask_true, x=30)
+
         #take the R channel
         # virtual_histology_image = cv2.cvtColor(virtual_histology_image,cv2.COLOR_BGR2RGB)
 
-        if output_vhist_path:
-            cv2.imwrite(output_vhist_path, virtual_histology_image)
+
 
         #segment the epidermis
         segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
         if bcc_mask_true is not None:
         #segment the bcc
+            
             bcc_segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path,
                                                                           gt_mask=cropped_bcc_mask_true, args=args,
                                                                           prompts=prompts,
