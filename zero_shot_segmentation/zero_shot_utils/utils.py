@@ -287,6 +287,10 @@ def bounding_rectangle(array):
     #0.2 CONFIG
     y2 = y2 + MASK_SCALE_FACTOR * h
     y2 = int(min(y2, array.shape[0]))
+    # x1 = x1 + 60
+    # x2 = x2 - 60
+    # y1 = y1 + 20
+    # y2 = y2 - 30
     return np.array([x1,y1,x2,y2])
 
 

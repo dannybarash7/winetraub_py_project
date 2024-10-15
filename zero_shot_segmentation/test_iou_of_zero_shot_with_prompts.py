@@ -54,9 +54,11 @@ visualize_input_vhist = True
 segment_virtual_histology = True
 segment_real_histology = False
 segment_oct_flag = False #not supported in bcc 3d segmentation
-continue_for_existing_images = False
+continue_for_existing_images = True
 #None or filename
 single_image_to_segment = None
+start_idx = 95
+
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
 
 # CONFIG
@@ -254,6 +256,7 @@ def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, pr
                                         prompts, ext="vhist_pred")
         visualize_prediction_with_score(best_mask, cropped_vhist_mask_true, dont_care_mask, no_gel_oct, dice, oct_image_name, output_image_dir,
                                         prompts, ext="vhist_pred_over_oct")
+
         visualize_prediction_over_image(best_mask, cropped_vhist, oct_image_name, output_image_dir, ext="vhist_pred")
         visualize_prediction_with_outline(best_mask, cropped_vhist_mask_true, no_gel_oct, oct_image_name, output_image_dir, ext="vhist_pred_over_oct")
 
@@ -265,11 +268,17 @@ def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, pr
             visualize_prediction_with_score(best_bcc_mask, cropped_bcc_mask_true, dont_care_mask, cropped_oct_image, dice_bcc,
                                             oct_image_name, output_image_dir,
                                             prompts, ext="vhist_bcc_pred_over_input_oct")
+            visualize_prediction_with_score(best_bcc_mask, cropped_bcc_mask_true, dont_care_mask, cropped_vhist, dice_bcc,
+                                            oct_image_name, output_image_dir,
+                                            prompts, ext="vhist_bcc_pred")
+
             visualize_prediction_over_image(best_bcc_mask, cropped_vhist, oct_image_name, output_image_dir, ext="vhist_bcc_pred")
             visualize_prediction_only(best_bcc_mask, oct_image_name, output_image_dir,
                                       ext="vhist_bcc_blob")
             visualize_prediction_with_outline(best_bcc_mask, cropped_bcc_mask_true, no_gel_oct, oct_image_name, output_image_dir, ext="outline_vhist_bcc_pred_over_oct")
             visualize_prediction_with_outline(best_bcc_mask, cropped_bcc_mask_true, cropped_oct_image, oct_image_name, output_image_dir, ext="outline_vhist_bcc_pred_over_input_oct")
+            visualize_prediction_with_outline(best_bcc_mask, cropped_bcc_mask_true, cropped_vhist, oct_image_name, output_image_dir, ext="outline_vhist_bcc_pred")
+
 
 
 def does_column_exist(oct_fname, domain_dice_str): #domain_dice_str = "dice_oct" | "dice_vhist" | "dice_histology"
@@ -326,6 +335,8 @@ def main(args):
         if single_image_to_segment is not None and not extract_filename_prefix(oct_fname).startswith(
                 single_image_to_segment):
             continue
+        if start_idx is not None and ds_idx < start_idx:
+            continue
         if patient_to_skip is not None:
             skip_sample = False
             for patient in patient_to_skip:
@@ -338,12 +349,12 @@ def main(args):
 
         prompts = None
         image_name = extract_filename_prefix(oct_fname)
-        print(f"\nimage number {images_processed}: {image_name}")
         images_processed += 1
         image_path = os.path.join(roboflow_annot_dataset_dir, oct_fname)
         updated_rf_dir = "/Users/dannybarash/Code/oct/paper_code/3d_segmentation/BCC/67M_BCC_ST3_Cheek_2021.10.6_4"
         updated_oct_fname = f"frame_{ds_idx:04}.png"
         vhist_image_name = f"vhist_frame{oct_fname_idx:04}.png"
+        print(f"\nimages processed: {images_processed}, next oct image name {updated_oct_fname}, vhist image name {vhist_image_name}")
         image_name = f"frame_{ds_idx:04}.png"
         image_path = os.path.join(updated_rf_dir, updated_oct_fname)
         roboflow_next_img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
