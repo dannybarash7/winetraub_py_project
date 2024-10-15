@@ -129,7 +129,15 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
         else:
             print("DEBUG: using vhist path", vhist_path)
             virtual_histology_image = cv2.imread(vhist_path, cv2.IMREAD_UNCHANGED)
-            cv2.imwrite(output_vhist_path, virtual_histology_image)
+            # Remove the first 40 lines
+            image_cropped = virtual_histology_image[40:, :]
+
+            # Create a black padding (40 rows of zeros)
+            black_padding = np.zeros((40, image_cropped.shape[1], image_cropped.shape[2]), dtype=np.uint8)
+
+            # Add the black padding at the bottom
+            image_padded = np.vstack((image_cropped, black_padding))
+            cv2.imwrite(output_vhist_path, image_padded)
         #take the R channel
         # virtual_histology_image = cv2.cvtColor(virtual_histology_image,cv2.COLOR_BGR2RGB)
 
