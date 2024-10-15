@@ -53,7 +53,7 @@ visualize_input_vhist = True
 
 create_virtual_histology = True
 segment_real_hist = False
-continue_for_existing_images =False
+skip_existing_images =True
 #None or filename
 single_image_to_segment = None
 patient_to_skip = None# ["LG-63", "LG-73", "LHC-36"]
@@ -304,7 +304,7 @@ def main(args):
     if csv_exists:
         shutil.copyfile(csv_path, csv_path + ".previous")
 
-    if continue_for_existing_images and csv_exists:
+    if skip_existing_images and csv_exists:
         df = pd.read_csv(csv_path, index_col='Unnamed: 0')
     else:
         index_array = [extract_filename_prefix(file) for file in image_files]
@@ -364,14 +364,14 @@ def main(args):
             plt.title(f"{image_name}")
             plt.savefig(f'{os.path.join(output_image_dir, image_name)}_input_gt.png')
             plt.close('all')
-        skip_oct = continue_for_existing_images and does_column_exist(oct_fname, "dice_oct")
+        skip_oct = skip_existing_images and does_column_exist(oct_fname, "dice_oct")
         if not skip_oct:
             prompts = segment_oct(image_path, epidermis_mask, image_name, dont_care_mask)
             total_samples_oct += 1
         else:
             print(f"skipping oct segmentation")
         if segment_real_hist:
-            skip_hist = continue_for_existing_images and does_column_exist(oct_fname, "dice_histology")
+            skip_hist = skip_existing_images and does_column_exist(oct_fname, "dice_histology")
             if not skip_hist:
                 file_name = image_name[:-1] + "B.jpg"
                 image_path_hist = os.path.join(raw_oct_dataset_dir, file_name)
@@ -381,7 +381,7 @@ def main(args):
             else:
                 print(f"skipping histology segmentation")
         if create_virtual_histology:
-            skip_vhist = continue_for_existing_images and does_column_exist(oct_fname, "dice_vhist")
+            skip_vhist = skip_existing_images and does_column_exist(oct_fname, "dice_vhist")
             if not skip_vhist:
                 segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts)
                 total_samples_vhist += 1

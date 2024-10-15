@@ -120,12 +120,16 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
 
     if create_vhist:
         # run vh&e
-        if vhist_path is None:
-            virtual_histology_image, _, _ = oct2hist.run_network(cropped_oct_unscaled,
-                                                                         microns_per_pixel_x=microns_per_pixel_x,
-                                                                         microns_per_pixel_z=microns_per_pixel_z)
+        if not os.path.exists(vhist_path):
+            # virtual_histology_image, _, _ = oct2hist.run_network(cropped_oct_unscaled,
+            #                                                              microns_per_pixel_x=microns_per_pixel_x,
+            #                                                              microns_per_pixel_z=microns_per_pixel_z)
+            raise Exception("Vhist path")
+
         else:
+            print("DEBUG: using vhist path", vhist_path)
             virtual_histology_image = cv2.imread(vhist_path, cv2.IMREAD_UNCHANGED)
+            cv2.imwrite(output_vhist_path, virtual_histology_image)
         #take the R channel
         # virtual_histology_image = cv2.cvtColor(virtual_histology_image,cv2.COLOR_BGR2RGB)
 

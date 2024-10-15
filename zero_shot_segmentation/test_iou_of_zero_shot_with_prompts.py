@@ -22,6 +22,7 @@ import cv2
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy
+import numpy as np
 import pandas
 import pandas as pd
 from tqdm import tqdm
@@ -35,7 +36,7 @@ from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, 
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
 from zero_shot_segmentation.zero_shot_utils.predict_mask_on_oct_interactive import predict_oct, predict_histology
 from zero_shot_segmentation.zero_shot_utils.utils import single_or_multiple_predictions, extract_filename_prefix, \
-    bounding_rectangle
+    bounding_rectangle, interpolate_masks
 
 sys.path.append('./OCT2Hist_UseModel')
 sys.path.append('./zero_shot_segmentation')
@@ -191,8 +192,9 @@ def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, pr
     with open(fpath, 'wb+') as f:
         numpy.save(f, cropped_vhist_mask[0])  # a = numpy.load(fpath)
     fpath = f'{os.path.join(output_image_dir, oct_image_name)}_predicted_bcc_mask_vhist.npy'
-    with open(fpath, 'wb+') as f:
-        numpy.save(f, bcc_segmentation[0])  # a = numpy.load(fpath)
+    if bcc_segmentation is not None:
+        with open(fpath, 'wb+') as f:
+            numpy.save(f, bcc_segmentation[0])  # a = numpy.load(fpath)
 
     # cropped_vhist_mask_true = crop(warped_vhist_mask_true, **crop_args)
     crop_args_path = f'{os.path.join(output_image_dir, oct_image_name)}_vhist_crop_args.pickle'
@@ -219,8 +221,11 @@ def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, pr
         return
     epidermis_iou_vhist, dice, best_mask = single_or_multiple_predictions(cropped_vhist_mask_true, cropped_vhist_mask,
                                                                           EPIDERMIS, dont_care_mask=dont_care_mask)
-    bcc_iou_vhist, dice_bcc, best_bcc_mask = single_or_multiple_predictions(cropped_bcc_mask_true, bcc_segmentation,
-                                                                          EPIDERMIS, dont_care_mask=dont_care_mask)
+    if bcc_segmentation is not None:
+        bcc_iou_vhist, dice_bcc, best_bcc_mask = single_or_multiple_predictions(cropped_bcc_mask_true, bcc_segmentation,
+                                                                              EPIDERMIS, dont_care_mask=dont_care_mask)
+    else:
+        dice_bcc = np.nan
     if best_mask is None:
         print(f"Could not calculate iou for {image_path}.")
         return
@@ -311,11 +316,13 @@ def main(args):
     if not os.path.exists(output_image_dir):
         os.makedirs(output_image_dir)
 
-    i = 0
+    images_processed = 0
 
     if take_first_n_images > 0:
         image_files = image_files[:take_first_n_images]
-    for i,oct_fname in tqdm(enumerate(image_files)):
+    for ds_idx in range(0, 1000):
+        oct_fname_idx =  ds_idx // 5
+        oct_fname = image_files[oct_fname_idx]
         if single_image_to_segment is not None and not extract_filename_prefix(oct_fname).startswith(
                 single_image_to_segment):
             continue
@@ -328,17 +335,31 @@ def main(args):
             if skip_sample:
                 continue
 
-        i += 1
+
         prompts = None
         image_name = extract_filename_prefix(oct_fname)
-        print(f"\nimage number {i}: {image_name}")
+        print(f"\nimage number {images_processed}: {image_name}")
+        images_processed += 1
         image_path = os.path.join(roboflow_annot_dataset_dir, oct_fname)
         updated_rf_dir = "/Users/dannybarash/Code/oct/paper_code/3d_segmentation/BCC/67M_BCC_ST3_Cheek_2021.10.6_4"
-        updated_oct_fname = f"frame_{i*5:04}.png"
-        vhist_image_name = f"frame_{i:04}.png"
+        updated_oct_fname = f"frame_{ds_idx:04}.png"
+        vhist_image_name = f"vhist_frame{oct_fname_idx:04}.png"
+        image_name = f"frame_{ds_idx:04}.png"
         image_path = os.path.join(updated_rf_dir, updated_oct_fname)
         roboflow_next_img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-        bcc_mask, dont_care_mask, epidermis_mask = get_annotations(dataset, oct_fname)
+        dataset_image_idx = int(oct_fname.split('_')[1])
+        bcc_mask, dont_care_mask, epidermis_mask = get_annotations(dataset, oct_fname, )
+        if ds_idx % 5 != 0:
+            #interpolate
+            prev_oct_fname = image_files[ds_idx//5]
+            prev_bcc_mask, prev_dont_care_mask, prev_epidermis_mask = get_annotations(dataset, prev_oct_fname, )
+            weight = (ds_idx % 5) / 5
+            # from copy import deepcopy #
+            # curr_bcc_mask = deepcopy(bcc_mask) #
+            bcc_mask = interpolate_masks(prev_bcc_mask, bcc_mask, weight)
+            # new = bcc_mask != curr_bcc_mask #
+            dont_care_mask = interpolate_masks(prev_dont_care_mask, dont_care_mask, weight)
+            epidermis_mask = interpolate_masks(prev_epidermis_mask, epidermis_mask, weight)
 
 
         if visualize_input_gt:
@@ -369,7 +390,9 @@ def main(args):
         if segment_virtual_histology:
             skip_vhist = continue_for_existing_images and does_column_exist(oct_fname, "dice_vhist")
             if not skip_vhist:
-                segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask, vhist_image_name)
+                fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_vhist.npy'
+                if not os.path.exists(fpath):
+                    segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask, vhist_image_name)
                 total_samples_vhist += 1
             else:
                 print(f"skipping virtual histology segmentation")
@@ -399,9 +422,11 @@ def get_annotations(dataset, oct_fname):
             bcc_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], bcc_data)
         else:
             dont_care_mask = None
+            bcc_mask = None
     else:
         epidermis_mask = None
         dont_care_mask = None
+        bcc_mask = None
     return bcc_mask, dont_care_mask, epidermis_mask
 
 
