@@ -9,7 +9,8 @@ from OCT2Hist_UseModel.utils.crop import crop_oct_for_pix2pix, crop, crop_histol
 from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale, gray_level_rescale_v2
 from OCT2Hist_UseModel.utils.masking import mask_gel_and_low_signal
 from OCT2Hist_UseModel import oct2hist
-from zero_shot_segmentation.consts import DOWNSAMPLE_SAM_INPUT, CROP_HISTOLOGY, GEL_BOTTOM_ROW, APPLY_MASKING
+from zero_shot_segmentation.consts import DOWNSAMPLE_SAM_INPUT, CROP_HISTOLOGY, GEL_BOTTOM_ROW, APPLY_MASKING, \
+    SHRINK_BCC
 from zero_shot_segmentation.zero_shot_utils.run_sam_gui import run_gui_segmentation
 from zero_shot_segmentation.zero_shot_utils.utils import get_center_of_mass
 
@@ -132,6 +133,23 @@ def crop_mask_x_percent_from_left(cropped_bcc_mask_true,x=10):
     new_x_min = x_min+int(x/100*(x_max-x_min))
     cropped_bcc_mask_true[:,x_min:new_x_min] = False
     return cropped_bcc_mask_true
+
+def crop_mask_x_percent(cropped_bcc_mask_true, percent=10):
+    coords = np.argwhere(cropped_bcc_mask_true)
+
+    y_min, x_min = coords.min(axis=0)
+    y_max, x_max = coords.max(axis=0)
+    w,h = x_max-x_min, y_max- y_min
+    w_delta = int((percent / 100) * w)
+    h_delta = int((percent / 100) * h)
+    new_x_min = x_min +  w_delta
+    new_x_max = x_max - w_delta
+    new_y_min = y_min + h_delta
+    new_y_max = y_max - h_delta
+    cropped_bcc_mask_true = np.zeros_like(cropped_bcc_mask_true)
+    cropped_bcc_mask_true[new_y_min:new_y_max,new_x_min:new_x_max] = True
+    return cropped_bcc_mask_true
+
 def crop_mask_to_non_black_values(cropped_bcc_mask_true, virtual_histology_image):
     gray_hist = cv2.cvtColor(virtual_histology_image, cv2.COLOR_BGR2GRAY)
     coords = np.argwhere(cropped_bcc_mask_true)
@@ -203,9 +221,11 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
         #         cv2.imwrite(new_file_path, virtual_histology_image)
         if output_vhist_path:
             cv2.imwrite(output_vhist_path, virtual_histology_image)
-        if cropped_bcc_mask_true.any():
+        if cropped_bcc_mask_true is not None and cropped_bcc_mask_true.any():
             cropped_bcc_mask_true = crop_mask_to_non_black_values(cropped_bcc_mask_true, virtual_histology_image)
         # cropped_bcc_mask_true = crop_mask_x_percent_from_left(cropped_bcc_mask_true, x=30)
+        if SHRINK_BCC:
+            cropped_bcc_mask_true = crop_mask_x_percent(cropped_bcc_mask_true, percent=10)
 
         #take the R channel
         # virtual_histology_image = cv2.cvtColor(virtual_histology_image,cv2.COLOR_BGR2RGB)

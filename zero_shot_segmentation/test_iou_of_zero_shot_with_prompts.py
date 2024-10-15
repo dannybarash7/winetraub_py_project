@@ -56,7 +56,7 @@ segment_oct_flag = False  # not supported in bcc 3d segmentation
 continue_for_existing_images = True
 # None or filename
 single_image_to_segment = None
-start_idx = 95
+start_idx = None # 95
 
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
 
