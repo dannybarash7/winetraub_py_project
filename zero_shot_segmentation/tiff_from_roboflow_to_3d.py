@@ -28,7 +28,7 @@ from tqdm import tqdm
 
 from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask
-from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS, ANNOTATED_DATA, rf_project_name
+from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, version, COLORS, ANNOTATED_DATA, rf_project_name, SAM2
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
 
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
@@ -69,6 +69,8 @@ if SAM:
     CHECKPOINT_PATH = "weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 if SAMMED_2D:
     CHECKPOINT_PATH = None
+if SAM2:
+    raise Exception("Not implemented")
 
 # roboflow semantic classes
 EPIDERMIS = True  # mask values for epidermis mask are simply True, where the foreground is False.

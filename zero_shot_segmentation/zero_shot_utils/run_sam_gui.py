@@ -12,7 +12,7 @@ from skimage import transform
 
 from OCT2Hist_UseModel.utils.masking import apply_closing_operation
 from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, INTERACTIVE_POINT_PREDICTION, CONST_BOX, \
-    ANNOTATED_DATA, SEGMENT_TILES
+    ANNOTATED_DATA, SEGMENT_TILES, SAM2
 from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass, \
     expand_bounding_rectangle
 
@@ -20,6 +20,10 @@ sys.path.append("./OCT2Hist_UseModel/")
 
 if SAM or MEDSAM:
     from segment_anything import sam_model_registry, SamPredictor, SamAutomaticMaskGenerator
+if SAM2:
+    import torch
+    from sam2.build_sam import build_sam2
+    from sam2.sam2_image_predictor import SAM2ImagePredictor
 if SAMMED_2D:
     from SAM_Med2D.segment_anything import sam_model_registry as sammed_model_registry
     from SAM_Med2D.segment_anything.predictor_sammed import SammedPredictor
@@ -102,7 +106,7 @@ class Segmenter():
         :param auto_segmentation: if automatic is on, and grid_prediction_flag is on, it's full grid, multimask prediction. if box: it's a tight box around the gt. If point: random bg point from the gt box.
         :param gt_mask:
         """
-        self.device = "mps"
+        self.device = "cpu"
         self.img = img
         self.min_mask_region_area = 500
         self.npoints = npoints
@@ -130,12 +134,21 @@ class Segmenter():
                 self.sam = sam_model_registry["vit_b"](checkpoint=weights_path)
             if SAM:
                 self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
+            if SAM2:
+                pass
             if not grid_prediction_flag:
                 if MEDSAM or SAM:
                     self.predictor = SamPredictor(self.sam)
                 if SAMMED_2D:
                     self.predictor = SammedPredictor(model)
-                self.predictor.set_image(self.img)
+                if SAM2:
+                    checkpoint = "/Users/dannybarash/Code/oct/sam2/checkpoints/sam2.1_hiera_base_plus.pt"
+                    model_cfg = "configs/sam2.1/sam2.1_hiera_b+.yaml"
+                    self.predictor = SAM2ImagePredictor(build_sam2(model_cfg, checkpoint, device=self.device))
+                    with torch.inference_mode():#, torch.autocast(self.device, dtype=torch.bfloat16):
+                        self.predictor.set_image(self.img)
+                else:
+                    self.predictor.set_image(self.img)
             else:
                 self.predictor = SamAutomaticMaskGenerator(
                     self.sam,
@@ -364,6 +377,9 @@ class Segmenter():
             masks = np.expand_dims(masks, 0)
         #     user_box_to_sam_med = self.user_box / np.array([1024,  512, 1024,  512]) * 1024
         #     masks, _, _ = self.predictor.predict(box=self.user_box, multimask_output=False)
+        elif SAM2:
+            with torch.inference_mode():#, torch.autocast(self.device, dtype=torch.bfloat16):
+                masks, _, _ = self.predictor.predict(box=self.user_box, multimask_output=False)
         else:
             masks, qualities, low_res_mask_inputs = self.predictor.predict(box=self.user_box, multimask_output=False)
             # i = qualities.argmax()
