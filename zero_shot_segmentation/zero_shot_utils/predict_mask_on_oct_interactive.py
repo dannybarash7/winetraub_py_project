@@ -246,9 +246,16 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
 
     else:
         segmentation, points_used, prompts = run_gui_segmentation(scaled_cropped_oct_without_gel, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
+        if bcc_mask_true is not None:
+            # segment the bcc
+
+            bcc_segmentation, points_used, prompts = run_gui_segmentation(scaled_cropped_oct_without_gel, weights_path,
+                                                                          gt_mask=cropped_bcc_mask_true, args=args,
+                                                                          prompts=prompts,
+                                                                          dont_care_mask=cropped_dont_care_mask)
+        else:
+            bcc_segmentation = None
         virtual_histology_image = None
-        bcc_segmentation = None
-        cropped_bcc_mask_true = None
     # bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
     return segmentation, virtual_histology_image, cropped_histology_gt, cropped_oct_unscaled, points_used, mask_true, prompts, crop_args, scaled_cropped_oct_without_gel, bcc_segmentation,cropped_bcc_mask_true
 

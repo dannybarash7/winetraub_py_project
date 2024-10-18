@@ -25,6 +25,7 @@ import numpy
 import numpy as np
 import pandas
 import pandas as pd
+from tqdm import tqdm
 
 from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask, boolean_mask_image_to_boolean_outline_image
@@ -51,12 +52,13 @@ visualize_pred_over_vhist = True
 visualize_input_vhist = True
 
 segment_virtual_histology = True
+segment_bcc = True
 segment_real_histology = False
 segment_oct_flag = False  # not supported in bcc 3d segmentation
 continue_for_existing_images = True
 # None or filename
 single_image_to_segment = None
-start_idx = None # 95
+indices_to_segment  = range(0,1000)
 
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
 
@@ -137,13 +139,17 @@ def segment_histology(image_path, epidermis_mask, image_name, dont_care_mask, pr
     # plt.close()
 
 
-def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask):
+def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask):
     global output_image_dir, total_iou_vhist, total_dice_vhist
     print("OCT segmentation")
-    oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, warped_mask_true, prompts, crop_args, no_gel_oct, cropped_bcc_mask_true, scaled_cropped_oct = predict_oct(
-        image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=False,
-        dont_care_mask=dont_care_mask)
 
+    (  oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, mask_true,
+         prompts, crop_args, no_gel_oct, bcc_segmentation, cropped_bcc_mask_true) = predict_oct(
+        image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=segment_virtual_histology,
+        output_vhist_path=None, prompts=prompts, vhist_path=None, bcc_mask_true=bcc_mask)
+
+    fpath = f'{os.path.join(output_image_dir, image_name)}_no_gel_oct.png'
+    cv2.imwrite(fpath, no_gel_oct)
     fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_oct.npy'
     with open(fpath, 'wb+') as f:
         numpy.save(f, oct_mask[0])  # a = numpy.load(fpath)
@@ -157,17 +163,26 @@ def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask):
     cv2.imwrite(path, cropped_oct_image)
     # Calculate IoU for each class# DERMIS
     epidermis_mask = cropped_histology_gt
-    if warped_mask_true is None or warped_mask_true.sum().sum() == 0:
+    if mask_true is None or mask_true.sum().sum() == 0:
         print(f"Could not segment OCT image {image_path}.")
     else:
         epidermis_iou_oct, dice, best_mask = single_or_multiple_predictions(epidermis_mask, oct_mask, EPIDERMIS,
                                                                             dont_care_mask=dont_care_mask)
+        if bcc_segmentation is not None:
+            bcc_iou_vhist, dice_bcc, best_bcc_mask = single_or_multiple_predictions(cropped_bcc_mask_true,
+                                                                                    bcc_segmentation,
+                                                                                    EPIDERMIS,
+                                                                                    dont_care_mask=dont_care_mask)
+        else:
+            dice_bcc = np.nan
         print(f"OCT iou: {epidermis_iou_oct}.")
         print(f"OCT dice: {dice}.")
         total_iou_oct[EPIDERMIS] += epidermis_iou_oct
         total_dice_oct[EPIDERMIS] += dice
         df.loc[image_name, "iou_oct"] = epidermis_iou_oct
         df.loc[image_name, "dice_oct"] = dice
+        df.loc[image_name, "dice_bcc_oct"] = dice_bcc
+
         df.loc[image_name, "nclicks_oct"] = n_points_used
 
         if visualize_pred_vs_gt_oct:
@@ -179,6 +194,18 @@ def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask):
             if no_gel_oct is not None:
                 fpath = f'{os.path.join(output_image_dir, image_name)}_{"oct_no_gel"}'
                 cv2.imwrite(f'{fpath}.png', no_gel_oct)
+            if bcc_mask is not None:
+                # vistualize bcc
+                visualize_prediction_with_score(best_bcc_mask, cropped_bcc_mask_true, dont_care_mask, no_gel_oct,
+                                                dice_bcc,
+                                                image_name, output_image_dir,
+                                                prompts, ext="oct_bcc_pred")
+
+                visualize_prediction_only(best_bcc_mask, image_name, output_image_dir,
+                                          ext="oct_bcc_blob")
+                visualize_prediction_with_outline(best_bcc_mask, cropped_bcc_mask_true, no_gel_oct, image_name,
+                                                  output_image_dir, ext="outline_oct_bcc_pred")
+
     return prompts
 
 
@@ -341,13 +368,17 @@ def main(args):
 
     if take_first_n_images > 0:
         image_files = image_files[:take_first_n_images]
-    for ds_idx in range(0, 1000):
+    if indices_to_segment is not None:
+        image_file_indices = indices_to_segment
+    else:
+        image_file_indices = range(len(image_files))
+    for ds_idx in tqdm(image_file_indices): #range(0, 1000)
+        if indices_to_segment is not None and ds_idx not in indices_to_segment:
+            continue
         oct_fname_idx = ds_idx // 5
         oct_fname = image_files[oct_fname_idx]
         if single_image_to_segment is not None and not extract_filename_prefix(oct_fname).startswith(
                 single_image_to_segment):
-            continue
-        if start_idx is not None and ds_idx < start_idx:
             continue
         if patient_to_skip is not None:
             skip_sample = False
@@ -372,6 +403,8 @@ def main(args):
         roboflow_next_img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
         dataset_image_idx = int(oct_fname.split('_')[1])
         bcc_mask, dont_care_mask, epidermis_mask = get_annotations(dataset, oct_fname, )
+        if not segment_bcc:
+            bcc_mask = None
         if ds_idx % 5 != 0:
             # interpolate
             prev_oct_fname = image_files[ds_idx // 5]
@@ -402,9 +435,9 @@ def main(args):
             plt.title(f"{image_name}")
             plt.savefig(f'{os.path.join(output_image_dir, image_name)}_input_gt.png')
             plt.close('all')
-        skip_oct = continue_for_existing_images and does_column_exist(oct_fname, "dice_oct")
+        skip_oct = continue_for_existing_images and file_exist(updated_oct_fname, "dice_oct")
         if segment_oct_flag and not skip_oct:
-            prompts = segment_oct(image_path, epidermis_mask, image_name, dont_care_mask)
+            prompts = segment_oct(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask)
             total_samples_oct += 1
         else:
             print(f"skipping oct segmentation")
@@ -419,12 +452,10 @@ def main(args):
             else:
                 print(f"skipping histology segmentation")
         if segment_virtual_histology:
-            skip_vhist = continue_for_existing_images and does_column_exist(oct_fname, "dice_vhist")
+            skip_vhist = continue_for_existing_images and file_exist(updated_oct_fname, "dice_oct")
             if not skip_vhist:
-                fpath = f'{os.path.join(output_image_dir, image_name)}_predicted_mask_vhist.npy'
-                if not os.path.exists(fpath):
-                    segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask,
-                                  vhist_image_name)
+                segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask,
+                              vhist_image_name)
                 total_samples_vhist += 1
             else:
                 print(f"skipping virtual histology segmentation")
@@ -515,7 +546,7 @@ def visualize_prediction_with_outline(best_mask, gt_mask, cropped_oct_image, ima
         overlay[best_mask] = color_blue
     gt_outline = boolean_mask_image_to_boolean_outline_image(gt_mask)
     overlay[gt_outline] = color_green
-    alpha = 0.4
+    alpha = 0.2
     overlayed_image = cv2.addWeighted(overlay, alpha, cropped_oct_image, 1 - alpha, 0)
     fpath = f'{os.path.join(output_image_dir, image_name)}_{ext}.png'
     cv2.imwrite(fpath, overlayed_image)
