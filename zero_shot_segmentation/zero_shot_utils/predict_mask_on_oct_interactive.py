@@ -190,35 +190,36 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
 
     if create_vhist:
         # run vh&e
-        virtual_histology_image, _, _ = oct2hist.run_network(cropped_oct_unscaled,
-                                                                     microns_per_pixel_x=microns_per_pixel_x,
-                                                                     microns_per_pixel_z=microns_per_pixel_z, apply_masking=APPLY_MASKING)
+        if False:
+            virtual_histology_image, _, _ = oct2hist.run_network(cropped_oct_unscaled,
+                                                                         microns_per_pixel_x=microns_per_pixel_x,
+                                                                         microns_per_pixel_z=microns_per_pixel_z, apply_masking=APPLY_MASKING)
 
-        # else:
-        #     print("DEBUG: using vhist path", vhist_path)
-        #     virtual_histology_image = cv2.imread(vhist_path, cv2.IMREAD_UNCHANGED)
-        #
-        #     if output_vhist_path:
-        #         cv2.imwrite(output_vhist_path, virtual_histology_image)
-        #     #crop top black part
-        #     # top_line = top_half_bottom_most_black_row(virtual_histology_image)
-        #     # if top_line>0:
-        #     #     # Remove the first 40 lines
-        #     #     image_cropped = virtual_histology_image[top_line:, :]
-        #     #     # Create a black padding (40 rows of zeros)
-        #     #     black_padding = np.zeros((top_line, image_cropped.shape[1], image_cropped.shape[2]), dtype=np.uint8)
-        #     #     # Add the black padding at the bottom
-        #     #     virtual_histology_image = np.vstack((image_cropped, black_padding))
-        #     # Split the path into directory, base filename, and extension
-        #     directory, filename = os.path.split(output_vhist_path)
-        #     name, ext = os.path.splitext(filename)
-        #
-        #     # Append "original" before the file extension
-        #     new_filename = f"{name}_aligned.{ext}"
-        #     # Join the directory with the new filename to get the full path
-        #     new_file_path = os.path.join(directory, new_filename)
-        #     if output_vhist_path:
-        #         cv2.imwrite(new_file_path, virtual_histology_image)
+        else:
+            print("DEBUG: using vhist path", vhist_path)
+            virtual_histology_image = cv2.imread(vhist_path, cv2.IMREAD_UNCHANGED)
+
+            if output_vhist_path:
+                cv2.imwrite(output_vhist_path, virtual_histology_image)
+            #crop top black part
+            # top_line = top_half_bottom_most_black_row(virtual_histology_image)
+            # if top_line>0:
+            #     # Remove the first 40 lines
+            #     image_cropped = virtual_histology_image[top_line:, :]
+            #     # Create a black padding (40 rows of zeros)
+            #     black_padding = np.zeros((top_line, image_cropped.shape[1], image_cropped.shape[2]), dtype=np.uint8)
+            #     # Add the black padding at the bottom
+            #     virtual_histology_image = np.vstack((image_cropped, black_padding))
+            # Split the path into directory, base filename, and extension
+            directory, filename = os.path.split(output_vhist_path)
+            name, ext = os.path.splitext(filename)
+
+            # Append "original" before the file extension
+            new_filename = f"{name}_aligned.{ext}"
+            # Join the directory with the new filename to get the full path
+            new_file_path = os.path.join(directory, new_filename)
+            if output_vhist_path:
+                cv2.imwrite(new_file_path, virtual_histology_image)
         if output_vhist_path:
             cv2.imwrite(output_vhist_path, virtual_histology_image)
         if cropped_bcc_mask_true is not None and cropped_bcc_mask_true.any():
@@ -246,9 +247,16 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
 
     else:
         segmentation, points_used, prompts = run_gui_segmentation(scaled_cropped_oct_without_gel, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
+        if bcc_mask_true is not None:
+            # segment the bcc
+
+            bcc_segmentation, points_used, prompts = run_gui_segmentation(scaled_cropped_oct_without_gel, weights_path,
+                                                                          gt_mask=cropped_bcc_mask_true, args=args,
+                                                                          prompts=prompts,
+                                                                          dont_care_mask=cropped_dont_care_mask)
+        else:
+            bcc_segmentation = None
         virtual_histology_image = None
-        bcc_segmentation = None
-        cropped_bcc_mask_true = None
     # bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
     return segmentation, virtual_histology_image, cropped_histology_gt, cropped_oct_unscaled, points_used, mask_true, prompts, crop_args, scaled_cropped_oct_without_gel, bcc_segmentation,cropped_bcc_mask_true
 
