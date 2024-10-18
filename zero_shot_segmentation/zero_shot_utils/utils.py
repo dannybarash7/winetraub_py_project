@@ -287,6 +287,10 @@ def bounding_rectangle(array):
     #0.2 CONFIG
     y2 = y2 + MASK_SCALE_FACTOR * h
     y2 = int(min(y2, array.shape[0]))
+    # x1 = x1 + 60
+    # x2 = x2 - 60
+    # y1 = y1 + 20
+    # y2 = y2 - 30
     return np.array([x1,y1,x2,y2])
 
 
@@ -353,6 +357,33 @@ def single_or_multiple_predictions(mask_true, mask_predictions, class_id, dont_c
         return calculate_iou(mask_true, mask_predictions, class_id, dont_care_mask)
 
 
+def interpolate_masks(mask1, mask2, w):
+    if mask1 is None or mask2 is None:
+        return None
+    """
+    Interpolates between two 2D boolean masks and thresholds the result.
+
+    Parameters:
+    mask1 (numpy.ndarray): First 2D boolean mask.
+    mask2 (numpy.ndarray): Second 2D boolean mask.
+    w (float): Weight for interpolation (between 0 and 1).
+
+    Returns:
+    numpy.ndarray: A 2D boolean array, thresholded at 0.5.
+    """
+
+    # Convert boolean masks to float values [0, 1]
+    mask1_float = mask1.astype(float)
+    mask2_float = mask2.astype(float)
+
+    # Interpolate with weights w and 1-w
+    interpolated = w * mask1_float + (1 - w) * mask2_float
+
+    # Threshold the result at 0.5
+    result = interpolated >= 0.5
+
+    return result
+
 def make_mask_drawable(mask):
     mask = mask.astype(np.uint8)
     mask[mask == 1] = 255
@@ -365,6 +396,8 @@ def extract_filename_prefix(filename):
 
     # Remove the "_jpg" part if it exists
     if prefix.endswith('_jpg'):
+        prefix = prefix[:-4]
+    if prefix.endswith('_png'):
         prefix = prefix[:-4]
 
     return prefix

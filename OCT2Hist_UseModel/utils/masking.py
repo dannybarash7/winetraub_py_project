@@ -27,7 +27,7 @@ from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale, gray_
 from OCT2Hist_UseModel.utils.show_images import readImgByPath
 from copy import deepcopy
 from OCT2Hist_UseModel.utils.show_images import showImg
-from zero_shot_segmentation.consts import NPOINTS_FOR_SEGMENTATION, SAMMED_2D
+from zero_shot_segmentation.consts import NPOINTS_FOR_SEGMENTATION, SAMMED_2D, MIN_SIGNAL_FACTOR
 
 
 def mask_image_gel(img, min_signal_threshold=np.nan):
@@ -78,7 +78,7 @@ def mask_image(img, min_signal_threshold=np.nan):
   # Filtering out the gel is usful since we don't care about the gel area for histology
   filt_img, filter_top_bottom = blackout_out_of_tissue_gel(filt_img, float_img)
 
-  # Extract the bollean mask
+  # Extract the boolean mask
   boolean_mask = ~((filt_img == 0.0) | np.isnan(filt_img))
 
   # Apply filter on original image and convert to output format
@@ -150,7 +150,7 @@ def blackout_10percent(filt_img):
 def find_min_signal(filt_img):
   m_mean_max, m_mean_min = get_rows_min_max(filt_img)
   # Finally we define a threshold for OCT intensity, anything below that will be blacked out
-  minSignal = 0.28 * (m_mean_max - m_mean_min) + m_mean_min
+  minSignal = MIN_SIGNAL_FACTOR * (m_mean_max - m_mean_min) + m_mean_min
   return minSignal
 
 def find_min_gel_signal(filt_img, threshold = 0.28):
@@ -336,6 +336,18 @@ def apply_closing_operation(mask):
   binary_result = closing_result.astype(bool)
   return binary_result
 
+def boolean_mask_image_to_boolean_outline_image(mask):
+  # color_np = np.array(color_arr)
+  mask_8bit = mask.astype(np.uint8)
+  contours, _ = cv2.findContours(mask_8bit.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+  # Create an empty image for visualization
+  outline_image = np.zeros_like(mask_8bit)
+  # Draw the contours on the empty image
+  cv2.drawContours(outline_image, contours, -1, (255), thickness=4)
+  outline_image = outline_image.astype(np.bool_)
+  # h, w = mask.shape[-2:]
+  # mask_image = mask.reshape(h, w, 1) * color_np.reshape(1, 1, -1)
+  return outline_image
 
 def show_mask(mask, ax, color_arr, outline = False):
     color_np  = np.array(color_arr)
