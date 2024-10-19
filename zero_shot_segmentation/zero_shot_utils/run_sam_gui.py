@@ -117,7 +117,7 @@ class Segmenter():
         self.grid_prediction_flag = grid_prediction_flag
         self.auto_segmentation = auto_segmentation
         self.gt_mask = gt_mask
-        self.dont_care_mask = dont_care_mask
+        self.dont_care_mask = dont_care_mask if dont_care_mask is not None else np.zeros_like(gt_mask,dtype=np.bool_)
         self.init_points = npoints
         self.prompts = prompts
 
@@ -142,7 +142,9 @@ class Segmenter():
                 if SAMMED_2D:
                     self.predictor = SammedPredictor(model)
                 if SAM2:
+                    # checkpoint = "/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam2/weights/sam2.1_hiera_large.pt"
                     checkpoint = "/Users/dannybarash/Code/oct/sam2/checkpoints/sam2.1_hiera_base_plus.pt"
+                    # model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
                     model_cfg = "configs/sam2.1/sam2.1_hiera_b+.yaml"
                     self.predictor = SAM2ImagePredictor(build_sam2(model_cfg, checkpoint, device=self.device))
                     with torch.inference_mode():#, torch.autocast(self.device, dtype=torch.bfloat16):
@@ -445,10 +447,22 @@ class Segmenter():
                     mask_input = logits[np.argmax(scores), :, :]
                     mask_input = mask_input[None, :, :]
         else:
-            masks, scores, logits = self.predictor.predict(point_coords=np.concatenate([self.add_pts, self.remove_pts]),
+            with torch.inference_mode(), torch.autocast("cpu", dtype=torch.bfloat16):
+                self.predictor.set_image(self.img)
+                masks, _, _ = self.predictor.predict(point_coords=np.concatenate([self.add_pts, self.remove_pts]),
                                                            point_labels=np.array(
                                                                [1] * len(self.add_pts) + [0] * len(self.remove_pts)),
                                                            multimask_output=False, mask_input=mask_input)
+            # with torch.inference_mode():  # , torch.autocast(self.device, dtype=torch.bfloat16):            #
+            #     masks, _, _ = self.predictor.predict(point_coords=np.concatenate([self.add_pts, self.remove_pts]),
+            #                                                point_labels=np.array(
+            #                                                    [1] * len(self.add_pts) + [0] * len(self.remove_pts)),
+            #                                                multimask_output=False, mask_input=mask_input)
+
+            # masks, scores, logits = self.predictor.predict(point_coords=np.concatenate([self.add_pts, self.remove_pts]),
+            #                                                point_labels=np.array(
+            #                                                    [1] * len(self.add_pts) + [0] * len(self.remove_pts)),
+            #                                                multimask_output=False, mask_input=mask_input)
             return masks
 
         return masks

@@ -233,7 +233,7 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
 
 
         #segment the epidermis
-        segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
+        # segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
         if bcc_mask_true is not None:
         #segment the bcc
             
@@ -241,6 +241,9 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
                                                                           gt_mask=cropped_bcc_mask_true, args=args,
                                                                           prompts=prompts,
                                                                           dont_care_mask=cropped_dont_care_mask)
+            ###HACK
+            segmentation = bcc_segmentation
+            ###HACK
         else:
             bcc_segmentation = None
 

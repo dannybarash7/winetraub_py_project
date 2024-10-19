@@ -30,7 +30,7 @@ from tqdm import tqdm
 from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask, boolean_mask_image_to_boolean_outline_image
 from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, COLORS, ANNOTATED_DATA, \
-    ROBOFLOW_ANNOT_DATASET_DIR, CROP_HISTOLOGY, RUN_FIVE_TIMES, SAM2
+    ROBOFLOW_ANNOT_DATASET_DIR, CROP_HISTOLOGY, RUN_FIVE_TIMES, SAM2, DEFAULT_NPOINTS
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
 
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
@@ -327,6 +327,10 @@ def does_column_exist(oct_fname, domain_dice_str):  # domain_dice_str = "dice_oc
     row = df.loc[sample_name]
     return domain_dice_str in row.index and not pandas.isna(row[domain_dice_str])
 
+def file_exist(oct_fname, domain_dice_str):  # domain_dice_str = "dice_oct" | "dice_vhist" | "dice_histology"
+    sample_name = extract_filename_prefix(oct_fname)
+    file = f"/Users/dannybarash/Code/oct/zero_shot_segmentation_test_sam2//images/bcc_data_1tile_with_bcc_ann_with_vhist_creation_testing_3d_epidermis_only/{sample_name}.png_vhist_pred_over_oct.png"
+    return os.path.exists(file)
 
 def main(args):
     assert segment_oct or segment_virtual_histology or segment_real_histology
@@ -619,7 +623,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process point, box, and grid arguments.")
     parser.add_argument("--output_dir", help="Specify output directory, e.g. './images/point_prediction' ")
     parser.add_argument("--take_first_n", help="take first n images", default=-1, type=int)
-    parser.add_argument("--npoints", help="number_of_prediction_points", default=10, type=int)
+    parser.add_argument("--npoints", help="number_of_prediction_points", default=DEFAULT_NPOINTS, type=int)
     parser.add_argument("--remove_output_dir", action="store_true", help="remove output dir before running the script")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--point", action="store_true", help="Specify a point.")
