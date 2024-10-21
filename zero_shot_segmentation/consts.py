@@ -1,20 +1,21 @@
 import os
 
-MEDSAM = False
+MEDSAM = True
 SAMMED_2D = False
-SAM = True
+SAM = False
 
 rf_api_key = "R04BinsZcBZ6PsfKR2fP"
 rf_workspace = "yolab-kmmfx"
 rf_project_name = "bcc-egkye"#"paper_data" #"paper_data"
 rf_dataset_type = "coco-segmentation"  # "png-mask-semantic"
 version = 4
-
+N_TILES = 8
 INTERACTIVE_POINT_PREDICTION = True
 DOWNSAMPLE_SAM_INPUT = False
 SEGMENT_TILES = False
 APPLY_MASKING = False
-SHRINK_BCC = True
+SHRINK_BCC = False
+SEGMENT_EPIDERMIS = False
 class COLORS:
     GT = [8 / 255, 255 / 255, 128 / 255, 0.6]
     PREDICTED_EPIDERMISE_BLUE = [0 / 255, 128 / 255, 255 / 255, 0.6]
