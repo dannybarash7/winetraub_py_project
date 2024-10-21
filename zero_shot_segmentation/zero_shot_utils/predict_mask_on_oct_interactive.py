@@ -10,7 +10,7 @@ from OCT2Hist_UseModel.utils.gray_level_rescale import gray_level_rescale, gray_
 from OCT2Hist_UseModel.utils.masking import mask_gel_and_low_signal
 from OCT2Hist_UseModel import oct2hist
 from zero_shot_segmentation.consts import DOWNSAMPLE_SAM_INPUT, CROP_HISTOLOGY, GEL_BOTTOM_ROW, APPLY_MASKING, \
-    SHRINK_BCC
+    SHRINK_BCC, SEGMENT_EPIDERMIS
 from zero_shot_segmentation.zero_shot_utils.run_sam_gui import run_gui_segmentation
 from zero_shot_segmentation.zero_shot_utils.utils import get_center_of_mass
 
@@ -189,10 +189,13 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
     
 
     if create_vhist:
-        # run vh&e
-        virtual_histology_image, _, _ = oct2hist.run_network(cropped_oct_unscaled,
-                                                                     microns_per_pixel_x=microns_per_pixel_x,
-                                                                     microns_per_pixel_z=microns_per_pixel_z, apply_masking=APPLY_MASKING)
+        if not os.path.exists(vhist_path):
+            # run vh&e
+            virtual_histology_image, _, _ = oct2hist.run_network(cropped_oct_unscaled,
+                                                                         microns_per_pixel_x=microns_per_pixel_x,
+                                                                         microns_per_pixel_z=microns_per_pixel_z, apply_masking=APPLY_MASKING)
+        else:
+            virtual_histology_image = cv2.imread(vhist_path, cv2.IMREAD_UNCHANGED)
 
         # else:
         #     print("DEBUG: using vhist path", vhist_path)
@@ -233,7 +236,8 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
 
 
         #segment the epidermis
-        segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
+        if SEGMENT_EPIDERMIS:
+            segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
         if bcc_mask_true is not None:
         #segment the bcc
             
@@ -243,12 +247,21 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
                                                                           dont_care_mask=cropped_dont_care_mask)
         else:
             bcc_segmentation = None
+        if not SEGMENT_EPIDERMIS:
+            segmentation, points_used, prompts =  bcc_segmentation, points_used, prompts
 
     else:
         segmentation, points_used, prompts = run_gui_segmentation(scaled_cropped_oct_without_gel, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
+        if bcc_mask_true is not None:
+            # segment the bcc
+
+            bcc_segmentation, points_used, prompts = run_gui_segmentation(scaled_cropped_oct_without_gel, weights_path,
+                                                                          gt_mask=cropped_bcc_mask_true, args=args,
+                                                                          prompts=prompts,
+                                                                          dont_care_mask=cropped_dont_care_mask)
+        else:
+            bcc_segmentation = None
         virtual_histology_image = None
-        bcc_segmentation = None
-        cropped_bcc_mask_true = None
     # bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
     return segmentation, virtual_histology_image, cropped_histology_gt, cropped_oct_unscaled, points_used, mask_true, prompts, crop_args, scaled_cropped_oct_without_gel, bcc_segmentation,cropped_bcc_mask_true
 

@@ -12,7 +12,7 @@ from skimage import transform
 
 from OCT2Hist_UseModel.utils.masking import apply_closing_operation
 from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, INTERACTIVE_POINT_PREDICTION, CONST_BOX, \
-    ANNOTATED_DATA, SEGMENT_TILES
+    ANNOTATED_DATA, SEGMENT_TILES, N_TILES
 from zero_shot_segmentation.zero_shot_utils.utils import bounding_rectangle, get_center_of_mass, \
     expand_bounding_rectangle
 
@@ -26,7 +26,7 @@ if SAMMED_2D:
 segmenter = None
 
 
-def run_gui(img, weights_path, args, gt_mask=None, auto_segmentation=True, prompts=None, dont_care_mask = None):
+def run_gui(img, weights_path, args, gt_mask=None, auto_segmentation=True, prompts=None, dont_care_mask = None,tile_index=0):
     global segmenter
     if img is None:
         raise Exception("Image file not found.")
@@ -43,7 +43,8 @@ def run_gui(img, weights_path, args, gt_mask=None, auto_segmentation=True, promp
                               point_prediction_flag=True, npoints=args.npoints, prompts=prompts, dont_care_mask = dont_care_mask)
     elif args.box:
         segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask=gt_mask,
-                              box_prediction_flag=True)
+                              box_prediction_flag=True,tile_index=tile_index)
+
     elif args.grid:
         segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask=gt_mask,
                               grid_prediction_flag=True)
@@ -91,7 +92,7 @@ class Segmenter():
 
     def __init__(self, img, weights_path, auto_segmentation, npoints=0, box_prediction_flag=False,
                  point_prediction_flag=False, grid_prediction_flag=False, gt_mask=None, remaining_points=20,
-                 prompts=None, dont_care_mask = None):
+                 prompts=None, dont_care_mask = None,tile_index=0):
         """
 
         :param img:
@@ -168,46 +169,47 @@ class Segmenter():
             self.predictor = Segmenter._predictor
 
         if not grid_prediction_flag:
-            print("Creating image embeddings ... ", end="")
-            self.predictor.set_image(self.img)
+            print(f"Creating image embeddings for image... index {tile_index}", end="")
+            if tile_index == 0:
+                self.predictor.set_image(self.img)
             print("Done")
 
-        self.color_set = set()
-        self.current_color = self.pick_color()
-        self.add_xs, self.add_ys, self.rem_xs, self.rem_ys, self.trace = [], [], [], [], []
-
-        self.fig, self.ax = plt.subplots(figsize=(10 * (self.img.shape[1] / max(self.img.shape)),
-                                                  10 * (self.img.shape[0] / max(self.img.shape))))
-        self.fig.suptitle(f'Segment Anything GUI: {self.remaining_points} points remain', fontsize=16)
-        self.ax.set_title("Press 'h' to show/hide commands.", fontsize=10)
-        self.img = cv2.cvtColor(self.img, cv2.COLOR_BGR2RGB)
-        self.im = self.ax.imshow(self.img, cmap=mpl.cm.gray)
-        self.img = cv2.cvtColor(self.img, cv2.COLOR_BGR2RGB)
-        self.ax.autoscale(False)
-        self.label = 1
-        self.add_plot, = self.ax.plot([], [], 'o', markerfacecolor='green', markeredgecolor='black', markersize=5)
-        self.rem_plot, = self.ax.plot([], [], 'x', markerfacecolor='red', markeredgecolor='red', markersize=5)
-        self.mask_data = np.zeros((self.img.shape[0], self.img.shape[1], 4), dtype=np.uint8)
+        # self.color_set = set()
+        # self.current_color = self.pick_color()
+        # self.add_xs, self.add_ys, self.rem_xs, self.rem_ys, self.trace = [], [], [], [], []
+        #
+        # self.fig, self.ax = plt.subplots(figsize=(10 * (self.img.shape[1] / max(self.img.shape)),
+        #                                           10 * (self.img.shape[0] / max(self.img.shape))))
+        # self.fig.suptitle(f'Segment Anything GUI: {self.remaining_points} points remain', fontsize=16)
+        # self.ax.set_title("Press 'h' to show/hide commands.", fontsize=10)
+        # self.img = cv2.cvtColor(self.img, cv2.COLOR_BGR2RGB)
+        # self.im = self.ax.imshow(self.img, cmap=mpl.cm.gray)
+        # self.img = cv2.cvtColor(self.img, cv2.COLOR_BGR2RGB)
+        # self.ax.autoscale(False)
+        # self.label = 1
+        # self.add_plot, = self.ax.plot([], [], 'o', markerfacecolor='green', markeredgecolor='black', markersize=5)
+        # self.rem_plot, = self.ax.plot([], [], 'x', markerfacecolor='red', markeredgecolor='red', markersize=5)
+        # self.mask_data = np.zeros((self.img.shape[0], self.img.shape[1], 4), dtype=np.uint8)
         self.masks = []
-
-        for i in range(3):
-            self.mask_data[:, :, i] = self.current_color[i]
-        self.mask_plot = self.ax.imshow(self.mask_data)
-        self.prev_mask_data = np.zeros((self.img.shape[0], self.img.shape[1], 4), dtype=np.uint8)
-        self.prev_mask_plot = self.ax.imshow(self.prev_mask_data)
-        self.contour_plot, = self.ax.plot([], [], color='black')
-        self.fig.canvas.mpl_connect('button_press_event', self._on_click)
-        self.fig.canvas.mpl_connect('key_press_event', self._on_key)
-
-        self.show_help_text = False
-        self.help_text = plt.text(0.5, 0.5, '', horizontalalignment='center', verticalalignment='center',
-                                  transform=self.ax.transAxes)
-        self.opacity = 120  # out of 255
+        #
+        # for i in range(3):
+        #     self.mask_data[:, :, i] = self.current_color[i]
+        # self.mask_plot = self.ax.imshow(self.mask_data)
+        # self.prev_mask_data = np.zeros((self.img.shape[0], self.img.shape[1], 4), dtype=np.uint8)
+        # self.prev_mask_plot = self.ax.imshow(self.prev_mask_data)
+        # self.contour_plot, = self.ax.plot([], [], color='black')
+        # self.fig.canvas.mpl_connect('button_press_event', self._on_click)
+        # self.fig.canvas.mpl_connect('key_press_event', self._on_key)
+        #
+        # self.show_help_text = False
+        # self.help_text = plt.text(0.5, 0.5, '', horizontalalignment='center', verticalalignment='center',
+        #                           transform=self.ax.transAxes)
+        # self.opacity = 120  # out of 255
         self.global_masks = np.zeros((self.img.shape[0], self.img.shape[1]), dtype=np.uint8)
-        self.last_mask = np.zeros((self.img.shape[0], self.img.shape[1]), dtype=bool)  # to undo
-        self.full_legend = []
-        box = self.ax.get_position()
-        self.ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        # self.last_mask = np.zeros((self.img.shape[0], self.img.shape[1]), dtype=bool)  # to undo
+        # self.full_legend = []
+        # box = self.ax.get_position()
+        # self.ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
         if self.auto_segmentation:
             self.get_mask()
 
@@ -455,11 +457,11 @@ class Segmenter():
         for contour in contours:  # nan to disconnect contours
             xs.extend(contour[:, 0, 0].tolist() + [np.nan])
             ys.extend(contour[:, 0, 1].tolist() + [np.nan])
-        self.contour_plot.set_data(xs, ys)
+        # self.contour_plot.set_data(xs, ys)
         self.masks.append(mask)
-        self.mask_data[:, :, 3] = mask * self.opacity
-        self.mask_plot.set_data(self.mask_data)
-        self.fig.canvas.draw()
+        # self.mask_data[:, :, 3] = mask * self.opacity
+        # self.mask_plot.set_data(self.mask_data)
+        # self.fig.canvas.draw()
 
 
 
@@ -595,16 +597,16 @@ import numpy as np
 def split_into_tiles(img, gt_mask, dont_care_mask):
     # Get the dimensions of the input
     rows, cols, channels = img.shape
-    assert cols % 4 == 0, "The number of columns should be divisible by 4"
+    assert cols % N_TILES == 0, "The number of columns should be divisible by N_TILES"
 
-    # Split the image and masks into 4 equal parts along the columns
-    col_step = cols // 4
-    img_tiles = [img[:, i * col_step:(i + 1) * col_step, :] for i in range(4)]
-    gt_mask_tiles = [gt_mask[:, i * col_step:(i + 1) * col_step] for i in range(4)]
+    # Split the image and masks into N_TILES equal parts along the columns
+    col_step = cols // N_TILES
+    img_tiles = [img[:, i * col_step:(i + 1) * col_step, :] for i in range(N_TILES)]
+    gt_mask_tiles = [gt_mask[:, i * col_step:(i + 1) * col_step] for i in range(N_TILES)]
     if dont_care_mask is not None:
-        dont_care_tiles = [dont_care_mask[:, i * col_step:(i + 1) * col_step] for i in range(4)]
+        dont_care_tiles = [dont_care_mask[:, i * col_step:(i + 1) * col_step] for i in range(N_TILES)]
     else:
-        dont_care_tiles = [None]*4
+        dont_care_tiles = [None]*N_TILES
 
     return img_tiles, gt_mask_tiles, dont_care_tiles
 
@@ -655,10 +657,10 @@ def run_segmentation_on_tiles(img, gt_mask, dont_care_mask, weights_path, args):
     global_masks_list = []
     prompts_list = []
 
-    for i in range(4):
+    for i in range(N_TILES):
         # Run segmentation on each tile
         if np.any(gt_mask_tiles[i]):
-            segmenter = run_gui(img_tiles[i], weights_path, args, gt_mask_tiles[i], dont_care_mask=dont_care_tiles[i])
+            segmenter = run_gui(img_tiles[i], weights_path, args, gt_mask_tiles[i], dont_care_mask=dont_care_tiles[i],tile_index=i)
         else:
             global_masks_list.append([np.zeros([512,256], dtype=bool)])
 
