@@ -36,7 +36,7 @@ from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, 
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
 from zero_shot_segmentation.zero_shot_utils.predict_mask_on_oct_interactive import predict_oct, predict_histology
 from zero_shot_segmentation.zero_shot_utils.utils import single_or_multiple_predictions, extract_filename_prefix, \
-    bounding_rectangle, interpolate_masks
+    bounding_rectangle, interpolate_masks, unify_masks
 
 sys.path.append('./OCT2Hist_UseModel')
 sys.path.append('./zero_shot_segmentation')
@@ -51,14 +51,16 @@ visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
 visualize_input_vhist = True
 
-segment_virtual_histology = True
+segment_virtual_histology = True #epidermis is always segmented
 segment_bcc = True
+segment_bcc2 = True
+
 segment_real_histology = False
 segment_oct_flag = False  # not supported in bcc 3d segmentation
 continue_for_existing_images = True
 # None or filename
 single_image_to_segment = None
-indices_to_segment  = range(450,1000)
+indices_to_segment  = range(0,1000)
 
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
 
@@ -209,7 +211,7 @@ def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask, prompts,
     return prompts
 
 
-def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, prompts, bcc_mask, vhist_image_name):
+def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, prompts, bcc_mask,bcc2_mask, vhist_image_name):
     global output_image_dir, total_iou_vhist, total_dice_vhist
     # v. histology segmentation
     print("virtual histology segmentation")
@@ -217,14 +219,12 @@ def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, pr
     number = int(vhist_image_name[-8:-4]) #'vhist_frame0000.png'
     vhist_image_name =f"frame_{number:04d}.png_cropped_vhist_image.png"
     vhist_path_out = f'{os.path.join(output_image_dir, oct_image_name)}_cropped_vhist_image.png'
-    vhist_path_in = os.path.join(
-        "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/images/bcc_data_1tile_with_bcc_ann_with_vhist_creation_testing_3d",
-        vhist_image_name)
+    vhist_path_in = None
     (cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used,
      warped_vhist_mask_true, prompts, crop_args,
-     no_gel_oct, bcc_segmentation, cropped_bcc_mask_true) = predict_oct(
+     no_gel_oct, bcc_segmentation,  cropped_bcc_mask_true,bcc2_segmentation,cropped_bcc2_mask_true) = predict_oct(
         image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=segment_virtual_histology,
-        output_vhist_path=vhist_path_out, prompts=prompts, vhist_path=vhist_path_in, bcc_mask_true=bcc_mask)
+        output_vhist_path=vhist_path_out, prompts=prompts, vhist_path=vhist_path_in, bcc_mask_true=bcc_mask,bcc2_mask_true=bcc2_mask)
 
     fpath = f'{os.path.join(output_image_dir, oct_image_name)}_no_gel_oct.png'
     cv2.imwrite(fpath, no_gel_oct)
@@ -235,6 +235,11 @@ def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, pr
     if bcc_segmentation is not None:
         with open(fpath, 'wb+') as f:
             numpy.save(f, bcc_segmentation[0])  # a = numpy.load(fpath)
+    fpath = f'{os.path.join(output_image_dir, oct_image_name)}_predicted_bcc2_mask_vhist.npy'
+    if bcc2_segmentation is not None:
+        with open(fpath, 'wb+') as f:
+            numpy.save(f, bcc2_segmentation[0])  # a = numpy.load(fpath)
+
 
     # cropped_vhist_mask_true = crop(warped_vhist_mask_true, **crop_args)
     crop_args_path = f'{os.path.join(output_image_dir, oct_image_name)}_vhist_crop_args.pickle'
@@ -261,12 +266,18 @@ def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, pr
         return
     epidermis_iou_vhist, dice, best_mask = single_or_multiple_predictions(cropped_vhist_mask_true, cropped_vhist_mask,
                                                                           EPIDERMIS, dont_care_mask=dont_care_mask)
+    best_bcc_mask, best_bcc2_mask = None,None
     if bcc_segmentation is not None:
         bcc_iou_vhist, dice_bcc, best_bcc_mask = single_or_multiple_predictions(cropped_bcc_mask_true, bcc_segmentation,
                                                                                 EPIDERMIS,
                                                                                 dont_care_mask=dont_care_mask)
+    if bcc2_segmentation is not None:
+        bcc2_iou_vhist, dice_bcc2, best_bcc2_mask = single_or_multiple_predictions(cropped_bcc2_mask_true, bcc2_segmentation,
+                                                                                EPIDERMIS,
+                                                                                dont_care_mask=dont_care_mask)
     else:
         dice_bcc = np.nan
+        dice_bcc2 = np.nan
     if best_mask is None:
         print(f"Could not calculate iou for {image_path}.")
         return
@@ -284,6 +295,7 @@ def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, pr
     df.loc[oct_image_name, "dice_vhist"] = dice
 
     df.loc[oct_image_name, "dice_bcc_vhist"] = dice_bcc
+    df.loc[oct_image_name, "dice_bcc2_vhist"] = dice_bcc2
     df.loc[oct_image_name, "target_size_rel"] = target_size_rel
     df.loc[oct_image_name, "nclicks_vhist"] = n_points_used
     total_iou_vhist[EPIDERMIS] += epidermis_iou_vhist
@@ -302,23 +314,26 @@ def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, pr
         visualize_prediction_with_outline(best_mask, cropped_vhist_mask_true, no_gel_oct, oct_image_name,
                                           output_image_dir, ext="vhist_pred_over_oct")
 
-        if bcc_mask is not None:
-            # vistualize bcc
-            visualize_prediction_with_score(best_bcc_mask, cropped_bcc_mask_true, dont_care_mask, no_gel_oct, dice_bcc,
+        both_bcc_masks = unify_masks(bcc_mask, bcc2_mask)
+        both_bcc_best_masks = unify_masks(best_bcc_mask,best_bcc2_mask)
+        cropped_both_bcc_mask_true = unify_masks(cropped_bcc_mask_true,cropped_bcc2_mask_true)
+        if both_bcc_masks is not None:
+            # visualize bcc
+            visualize_prediction_with_score(both_bcc_best_masks, cropped_both_bcc_mask_true, dont_care_mask, no_gel_oct, dice_bcc,
                                             oct_image_name, output_image_dir,
                                             prompts, ext="vhist_bcc_pred_over_oct")
-            visualize_prediction_with_score(best_bcc_mask, cropped_bcc_mask_true, dont_care_mask, cropped_vhist,
+            visualize_prediction_with_score(both_bcc_best_masks, cropped_both_bcc_mask_true, dont_care_mask, cropped_vhist,
                                             dice_bcc,
                                             oct_image_name, output_image_dir,
                                             prompts, ext="vhist_bcc_pred")
 
-            visualize_prediction_over_image(best_bcc_mask, cropped_vhist, oct_image_name, output_image_dir,
+            visualize_prediction_over_image(both_bcc_best_masks, cropped_vhist, oct_image_name, output_image_dir,
                                             ext="vhist_bcc_pred")
-            visualize_prediction_only(best_bcc_mask, oct_image_name, output_image_dir,
+            visualize_prediction_only(both_bcc_best_masks, oct_image_name, output_image_dir,
                                       ext="vhist_bcc_blob")
-            visualize_prediction_with_outline(best_bcc_mask, cropped_bcc_mask_true, no_gel_oct, oct_image_name,
+            visualize_prediction_with_outline(both_bcc_best_masks, cropped_both_bcc_mask_true, no_gel_oct, oct_image_name,
                                               output_image_dir, ext="outline_vhist_bcc_pred_over_oct")
-            visualize_prediction_with_outline(best_bcc_mask, cropped_bcc_mask_true, cropped_vhist, oct_image_name,
+            visualize_prediction_with_outline(both_bcc_best_masks, cropped_both_bcc_mask_true, cropped_vhist, oct_image_name,
                                               output_image_dir, ext="outline_vhist_bcc_pred")
 
 
@@ -329,8 +344,9 @@ def does_column_exist(oct_fname, domain_dice_str):  # domain_dice_str = "dice_oc
 
 def file_exist(oct_fname, domain_dice_str):  # domain_dice_str = "dice_oct" | "dice_vhist" | "dice_histology"
     sample_name = extract_filename_prefix(oct_fname)
-    file = f"/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/images/bcc_data_1tile_with_bcc_ann_with_vhist_creation_testing_3d_epidermis_only/{sample_name}.png_vhist_pred_over_oct.png"
+    file = f"{output_image_dir}/{sample_name}.png_vhist_pred_over_oct.png"
     return os.path.exists(file)
+
 
 def main(args):
     assert segment_oct or segment_virtual_histology or segment_real_histology
@@ -406,17 +422,19 @@ def main(args):
         image_path = os.path.join(updated_rf_dir, updated_oct_fname)
         roboflow_next_img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
         dataset_image_idx = int(oct_fname.split('_')[1])
-        bcc_mask, dont_care_mask, epidermis_mask = get_annotations(dataset, oct_fname, )
+        bcc_mask, bcc2_mask, dont_care_mask, epidermis_mask = get_annotations(dataset, oct_fname, )
         if not segment_bcc:
             bcc_mask = None
+            bcc2_mask = None
         if ds_idx % 5 != 0:
             # interpolate
             prev_oct_fname = image_files[ds_idx // 5]
-            prev_bcc_mask, prev_dont_care_mask, prev_epidermis_mask = get_annotations(dataset, prev_oct_fname, )
+            prev_bcc_mask, prev_bcc2_mask, prev_dont_care_mask, prev_epidermis_mask = get_annotations(dataset, prev_oct_fname, )
             weight = (ds_idx % 5) / 5
             # from copy import deepcopy #
             # curr_bcc_mask = deepcopy(bcc_mask) #
             bcc_mask = interpolate_masks(prev_bcc_mask, bcc_mask, weight)
+            bcc2_mask = interpolate_masks(prev_bcc2_mask, bcc2_mask, weight)
             # new = bcc_mask != curr_bcc_mask #
             dont_care_mask = interpolate_masks(prev_dont_care_mask, dont_care_mask, weight)
             epidermis_mask = interpolate_masks(prev_epidermis_mask, epidermis_mask, weight)
@@ -430,10 +448,11 @@ def main(args):
             plt.title(f"{image_name}")
             plt.savefig(f'{os.path.join(output_image_dir, image_name)}_input_gt.png')
             plt.close('all')
-        if visualize_input_gt and bcc_mask is not None:
+        if visualize_input_gt and (bcc_mask is not None or bcc2_mask is not None):
+            both = unify_masks(bcc_mask, bcc2_mask)
             plt.figure(figsize=(5, 5))
             plt.imshow(roboflow_next_img, cmap='gray')
-            show_mask(bcc_mask, plt.gca(), color_arr=COLORS.PREDICTED_EPIDERMISE_BLUE)
+            show_mask(both, plt.gca(), color_arr=COLORS.PREDICTED_EPIDERMISE_BLUE)
             plt.axis('off')
             plt.suptitle(f"Input oct and ground truth mask")
             plt.title(f"{image_name}")
@@ -458,7 +477,7 @@ def main(args):
         if segment_virtual_histology:
             skip_vhist = continue_for_existing_images and file_exist(updated_oct_fname, "dice_oct")
             if not skip_vhist:
-                segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask,
+                segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask,bcc2_mask,
                               vhist_image_name)
                 total_samples_vhist += 1
             else:
@@ -469,6 +488,7 @@ def main(args):
 
 
 def get_annotations(dataset, oct_fname):
+    bcc_mask, bcc2_mask, dont_care_mask, epidermis_mask = None,None,None,None
     if ANNOTATED_DATA:
         oct_data = dataset.df[dataset.df.img_filename == oct_fname]
         epidermis_data = oct_data[oct_data.cat_name == "epidermis"].ann_segmentation.values[0][0]
@@ -482,19 +502,13 @@ def get_annotations(dataset, oct_fname):
                 dont_care_mask = dont_care_mask | hair_mask
 
             epidermis_mask = epidermis_mask & (~dont_care_mask)
-        else:
-            dont_care_mask = None
         if 'bcc' in oct_data.cat_name.unique():
             bcc_data = oct_data[oct_data.cat_name == "bcc"].ann_segmentation.values[0][0]
             bcc_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], bcc_data)
-        else:
-            dont_care_mask = None
-            bcc_mask = None
-    else:
-        epidermis_mask = None
-        dont_care_mask = None
-        bcc_mask = None
-    return bcc_mask, dont_care_mask, epidermis_mask
+        if 'bcc2' in oct_data.cat_name.unique():
+            bcc2_data = oct_data[oct_data.cat_name == "bcc2"].ann_segmentation.values[0][0]
+            bcc2_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], bcc2_data)
+    return bcc_mask, bcc2_mask, dont_care_mask, epidermis_mask
 
 
 def handle_stats(df, output_image_dir, total_dice_oct, total_dice_vhist, total_dice_histology, total_iou_oct,

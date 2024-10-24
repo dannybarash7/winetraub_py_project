@@ -401,3 +401,15 @@ def extract_filename_prefix(filename):
         prefix = prefix[:-4]
 
     return prefix
+
+
+def unify_masks(bcc_mask, bcc2_mask):
+    if bcc_mask is None and bcc2_mask is None:
+        return None
+    if bcc_mask is None:
+        both = bcc2_mask
+    elif bcc2_mask is None:
+        both = bcc_mask
+    else:
+        both = bcc2_mask | bcc_mask
+    return both

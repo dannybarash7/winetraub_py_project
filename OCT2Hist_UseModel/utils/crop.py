@@ -54,7 +54,7 @@ def find_crop_coords(input_image, y_tissue_top, delta): #left top corner
 
 def crop_oct_for_pix2pix(input_image):
     # target_width, target_height, x0, z0 = find_crop_coords(input_image, y_tissue_top, delta)
-    target_width, target_height, x0, z0 = 1024,512,0,0
+    target_width, target_height, x0, z0 = 1024,512,210,0
     coords = {"target_width":target_width, "target_height":target_height,"x0":x0,"z0":z0}
     cropped_img = crop(input_image, **coords)
     return cropped_img , coords
