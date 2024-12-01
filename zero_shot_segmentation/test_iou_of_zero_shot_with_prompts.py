@@ -51,20 +51,20 @@ visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
 visualize_input_vhist = True
 
-segment_virtual_histology = True
-segment_bcc = True
-segment_real_histology = False
+segment_virtual_histology = False
+segment_bcc = False
+segment_real_histology = True
 segment_oct_flag = False  # not supported in bcc 3d segmentation
 continue_for_existing_images = True
 # None or filename
 single_image_to_segment = None
-indices_to_segment  = range(0,1000)
+indices_to_segment  = range(1000)
 
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
 
 # CONFIG
 roboflow_annot_dataset_dir = ROBOFLOW_ANNOT_DATASET_DIR
-raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Hist Images/"
+raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-dannybarash7@gmail.com/Shared drives/Yolab - Current Projects/Yonatan/Zero Shot Segmentation Paper/Dataset/Raw OCT and Histology"
 
 if MEDSAM:
     CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/medsam/MedSAM/work_dir/MedSAM/medsam_vit_b.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
@@ -217,9 +217,11 @@ def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, pr
     # v. histology segmentation
     print("virtual histology segmentation")
     vhist_path_out = f'{os.path.join(output_image_dir, oct_image_name)}_cropped_vhist_image.png'
-    vhist_path_in = os.path.join(
-        "/Users/dannybarash/Code/oct/paper_code/3d_segmentation/BCC/67M_BCC_ST3_Cheek_2021.10.6_4_vhist",
-        vhist_image_name)
+    # vhist_path_in = os.path.join(
+    #     "/Users/dannybarash/Code/oct/paper_code/3d_segmentation/BCC/67M_BCC_ST3_Cheek_2021.10.6_4_vhist",
+    #     vhist_image_name)
+    vhist_path_out = None
+    vhist_path_in = None
     (cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used,
      warped_vhist_mask_true, prompts, crop_args,
      no_gel_oct, bcc_segmentation, cropped_bcc_mask_true) = predict_oct(
@@ -382,8 +384,8 @@ def main(args):
     for ds_idx in tqdm(image_file_indices): #range(0, 1000)
         if indices_to_segment is not None and ds_idx not in indices_to_segment:
             continue
-        oct_fname_idx = ds_idx // 5
-        oct_fname = image_files[oct_fname_idx]
+        # oct_fname_idx = ds_idx // 5
+        oct_fname = image_files[ds_idx]
         if single_image_to_segment is not None and not extract_filename_prefix(oct_fname).startswith(
                 single_image_to_segment):
             continue
@@ -400,29 +402,29 @@ def main(args):
         image_name = extract_filename_prefix(oct_fname)
         images_processed += 1
         image_path = os.path.join(roboflow_annot_dataset_dir, oct_fname)
-        updated_rf_dir = "/Users/dannybarash/Code/oct/paper_code/3d_segmentation/BCC/67M_BCC_ST3_Cheek_2021.10.6_4"
-        updated_oct_fname = f"frame_{ds_idx:04}.png"
-        vhist_image_name = f"vhist_frame{oct_fname_idx:04}.png"
-        print(
-            f"\nimages processed: {images_processed}, next oct image name {updated_oct_fname}, vhist image name {vhist_image_name}")
-        image_name = f"frame_{ds_idx:04}.png"
-        image_path = os.path.join(updated_rf_dir, updated_oct_fname)
+        # updated_rf_dir = "/Users/dannybarash/Code/oct/paper_code/3d_segmentation/BCC/67M_BCC_ST3_Cheek_2021.10.6_4"
+        # updated_oct_fname = f"frame_{ds_idx:04}.png"
+        # vhist_image_name = f"vhist_frame{oct_fname_idx:04}.png"
+        vhist_image_name = None
+        print(f"\nimages processed: {images_processed}, next image {ds_idx}")
+        # image_name = f"frame_{ds_idx:04}.png"
+        # image_path = os.path.join(updated_rf_dir, updated_oct_fname)
         roboflow_next_img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-        dataset_image_idx = int(oct_fname.split('_')[1])
+        # dataset_image_idx = int(oct_fname.split('_')[1])
         bcc_mask, dont_care_mask, epidermis_mask = get_annotations(dataset, oct_fname, )
         if not segment_bcc:
             bcc_mask = None
-        if ds_idx % 5 != 0:
-            # interpolate
-            prev_oct_fname = image_files[ds_idx // 5]
-            prev_bcc_mask, prev_dont_care_mask, prev_epidermis_mask = get_annotations(dataset, prev_oct_fname, )
-            weight = (ds_idx % 5) / 5
-            # from copy import deepcopy #
-            # curr_bcc_mask = deepcopy(bcc_mask) #
-            bcc_mask = interpolate_masks(prev_bcc_mask, bcc_mask, weight)
-            # new = bcc_mask != curr_bcc_mask #
-            dont_care_mask = interpolate_masks(prev_dont_care_mask, dont_care_mask, weight)
-            epidermis_mask = interpolate_masks(prev_epidermis_mask, epidermis_mask, weight)
+        # if ds_idx % 5 != 0:
+        #     # interpolate
+        #     prev_oct_fname = image_files[ds_idx // 5]
+        #     prev_bcc_mask, prev_dont_care_mask, prev_epidermis_mask = get_annotations(dataset, prev_oct_fname, )
+        #     weight = (ds_idx % 5) / 5
+        #     # from copy import deepcopy #
+        #     # curr_bcc_mask = deepcopy(bcc_mask) #
+        #     bcc_mask = interpolate_masks(prev_bcc_mask, bcc_mask, weight)
+        #     # new = bcc_mask != curr_bcc_mask #
+        #     dont_care_mask = interpolate_masks(prev_dont_care_mask, dont_care_mask, weight)
+        #     epidermis_mask = interpolate_masks(prev_epidermis_mask, epidermis_mask, weight)
 
         if visualize_input_gt:
             plt.figure(figsize=(5, 5))
@@ -442,7 +444,7 @@ def main(args):
             plt.title(f"{image_name}")
             plt.savefig(f'{os.path.join(output_image_dir, image_name)}_input_gt.png')
             plt.close('all')
-        skip_oct = continue_for_existing_images and file_exist(updated_oct_fname, "dice_oct")
+        skip_oct = continue_for_existing_images and file_exist(oct_fname, "dice_oct")
         if segment_oct_flag and not skip_oct:
             prompts = segment_oct(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask)
             total_samples_oct += 1
@@ -459,7 +461,7 @@ def main(args):
             else:
                 print(f"skipping histology segmentation")
         if segment_virtual_histology:
-            skip_vhist = continue_for_existing_images and file_exist(updated_oct_fname, "dice_oct")
+            skip_vhist = continue_for_existing_images and file_exist(oct_fname, "dice_oct")
             if not skip_vhist:
                 segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask,
                               vhist_image_name)
