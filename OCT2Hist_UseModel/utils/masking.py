@@ -348,7 +348,6 @@ def boolean_mask_image_to_boolean_outline_image(mask):
   # h, w = mask.shape[-2:]
   # mask_image = mask.reshape(h, w, 1) * color_np.reshape(1, 1, -1)
   return outline_image
-
 def show_mask(mask, ax, color_arr, outline = False):
     color_np  = np.array(color_arr)
     if outline:
