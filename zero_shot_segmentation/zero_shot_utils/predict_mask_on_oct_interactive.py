@@ -181,6 +181,7 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
                 prompts = None, dont_care_mask = None, vhist_path = None, bcc_mask_true = None):
     # Load OCT image
     oct_image = cv2.imread(oct_input_image_path)
+    filename = oct_input_image_path.split('/')[-1]
     # OCT image's pixel size
     microns_per_pixel_z = 1
     microns_per_pixel_x = 1
@@ -234,7 +235,7 @@ def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhis
 
 
         #segment the epidermis
-        # segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
+        segmentation, points_used, prompts = run_gui_segmentation(virtual_histology_image, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask, filename=filename)
         if bcc_mask_true is not None:
         #segment the bcc
             
@@ -272,9 +273,18 @@ def preprocess_histology(dont_care_mask, oct_image, warped_mask_true):
     return crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_histology
 
 
+def save_filename(filename, filepath="/Users/dannybarash/Code/oct/AE_experiment/data/filenames.txt"):
+    with open(filepath, 'a') as file:
+        file.write(filename + '\n')
+
 def predict_histology(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None, dont_care_mask = None):
     # Load OCT image
     histology_image = cv2.imread(oct_input_image_path)
+    save_filename(oct_input_image_path)
+    filename = oct_input_image_path.split('/')[-1]
+    # Utility functions to handle file operations
+
+
     warped_mask_true = mask_true
     # OCT image's pixel size
     microns_per_pixel_z = 1
@@ -286,7 +296,9 @@ def predict_histology(oct_input_image_path, mask_true, weights_path, args, creat
     else:
         crop_args = {"target_width": 1024, "target_height": 512, "x0": 0, "z0": 0}
         cropped_dont_care_mask, cropped_histology_gt, cropped_histology = dont_care_mask, warped_mask_true, histology_image
-    segmentation, points_used, prompts = run_gui_segmentation(cropped_histology, weights_path, gt_mask = cropped_histology_gt, args = args, prompts = prompts, dont_care_mask = cropped_dont_care_mask)
+    segmentation, points_used, prompts = run_gui_segmentation(cropped_histology, weights_path, gt_mask = cropped_histology_gt,
+                                                              args = args, prompts = prompts,
+                                                              dont_care_mask = cropped_dont_care_mask,filename=filename)
     virtual_histology_image = None
     # bounding_rectangle = utils.bounding_rectangle(cropped_histology_gt)
     return segmentation, virtual_histology_image, cropped_histology_gt, cropped_histology, points_used, warped_mask_true, prompts, crop_args

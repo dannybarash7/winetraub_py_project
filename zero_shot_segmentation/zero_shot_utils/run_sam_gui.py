@@ -29,8 +29,37 @@ if SAMMED_2D:
     from SAM_Med2D.segment_anything.predictor_sammed import SammedPredictor
 segmenter = None
 
+def save_filename(filename, filepath="/Users/dannybarash/Code/oct/AE_experiment/data/filenames.txt"):
+    with open(filepath, 'a') as file:
+        file.write(filename + '\n')
 
-def run_gui(img, weights_path, args, gt_mask=None, auto_segmentation=True, prompts=None, dont_care_mask = None):
+# Function to load data from placeholders
+def load_filenames(filepath="/Users/dannybarash/Code/oct/AE_experiment/data/filenames.txt"):
+    if not os.path.isfile(filepath):
+        return []
+    with open(filepath, 'r') as file:
+        filenames = [line.strip() for line in file.readlines()]
+    return filenames
+
+def save_image(image, new_filename, directory="/Users/dannybarash/Code/oct/AE_experiment/data/images/"):
+    filenames_path = "/Users/dannybarash/Code/oct/AE_experiment/data/filenames.txt"
+    # filenames = load_filenames(filenames_path)
+    # new_filename = os.path.basename(filenames[-1])
+    filepath = os.path.join(directory, new_filename)
+
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    cv2.imwrite(filepath, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+    save_filename(new_filename, filenames_path)
+
+
+def save_rectangle(rect, filepath="/Users/dannybarash/Code/oct/AE_experiment/data/rects.txt"):
+    with open(filepath, 'a') as file:
+        rect_str = ','.join(map(str, rect))
+        file.write(rect_str + '\n')
+
+def run_gui(img, weights_path, args, gt_mask=None, auto_segmentation=True, prompts=None, dont_care_mask = None,filename=None):
     global segmenter
     if img is None:
         raise Exception("Image file not found.")
@@ -47,7 +76,7 @@ def run_gui(img, weights_path, args, gt_mask=None, auto_segmentation=True, promp
                               point_prediction_flag=True, npoints=args.npoints, prompts=prompts, dont_care_mask = dont_care_mask)
     elif args.box:
         segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask=gt_mask,
-                              box_prediction_flag=True)
+                              box_prediction_flag=True, filename=filename)
     elif args.grid:
         segmenter = Segmenter(img, weights_path, auto_segmentation=auto_segmentation, gt_mask=gt_mask,
                               grid_prediction_flag=True)
@@ -95,7 +124,7 @@ class Segmenter():
 
     def __init__(self, img, weights_path, auto_segmentation, npoints=0, box_prediction_flag=False,
                  point_prediction_flag=False, grid_prediction_flag=False, gt_mask=None, remaining_points=20,
-                 prompts=None, dont_care_mask = None):
+                 prompts=None, dont_care_mask = None,filename=None):
         """
 
         :param img:
@@ -120,6 +149,7 @@ class Segmenter():
         self.dont_care_mask = dont_care_mask if dont_care_mask is not None else np.zeros_like(gt_mask,dtype=np.bool_)
         self.init_points = npoints
         self.prompts = prompts
+        self.filename =filename
 
         if Segmenter._predictor is None:  # init predictor
             if SAMMED_2D:
@@ -349,6 +379,30 @@ class Segmenter():
             boxes=box_torch,
             masks=None,
         )
+
+        # Placeholder for captured output
+        first_layer_output = None
+
+        # Define the hook function
+        def hook_fn(module, input, output):
+            global first_layer_output
+            first_layer_output = output.detach().cpu().numpy()  # Convert to NumPy
+            print(f"Captured output shape: {first_layer_output.shape}")
+            # Save the captured output to a NumPy file
+            path = f"/Users/dannybarash/Code/oct/AE_experiment/data/first_layer_output_{self.filename}"
+            np.save(path, first_layer_output)
+            print(f"First layer output saved to {path}")
+
+        # Register the hook on the first layer
+        hook_handle = medsam_model.mask_decoder.transformer.layers[0].self_attn.register_forward_hook(hook_fn)
+        path = f"/Users/dannybarash/Code/oct/AE_experiment/data/sparse_embeddings_{self.filename}"
+        np.save(path, sparse_embeddings)
+        path = f"/Users/dannybarash/Code/oct/AE_experiment/data/dense_embeddings_{self.filename}"
+        np.save(path, dense_embeddings)
+        path = f"/Users/dannybarash/Code/oct/AE_experiment/data/img_embed_{self.filename}"
+        np.save(path, img_embed)
+        path = f"/Users/dannybarash/Code/oct/AE_experiment/data/image_pe_{self.filename}"
+        np.save(path, medsam_model.prompt_encoder.get_dense_pe())
         low_res_logits, _ = medsam_model.mask_decoder(
             image_embeddings=img_embed,  # (B, 256, 64, 64)
             image_pe=medsam_model.prompt_encoder.get_dense_pe(),  # (1, 256, 64, 64)
@@ -356,6 +410,10 @@ class Segmenter():
             dense_prompt_embeddings=dense_embeddings,  # (B, 256, 64, 64)
             multimask_output=False,#True
         )
+
+
+
+
 
         low_res_pred = torch.sigmoid(low_res_logits)  # (1, 1, 256, 256)
 
@@ -374,6 +432,10 @@ class Segmenter():
             self.user_box = bounding_rectangle(self.gt_mask)
         else:
             self.user_box = np.array(CONST_BOX)
+
+        save_image(self.img,self.filename)
+        save_rectangle(self.user_box)
+        #TODO medsam inference
         if MEDSAM:
             masks = self.medsam_inference(self.img, self.user_box)
             masks = np.expand_dims(masks, 0)
@@ -603,12 +665,12 @@ class Segmenter():
 
 
 
-def run_gui_segmentation(img, weights_path, gt_mask, args, prompts, dont_care_mask):
+def run_gui_segmentation(img, weights_path, gt_mask, args, prompts, dont_care_mask,filename):
     if SEGMENT_TILES:
         global_mask_aggregated, _, prompts_list = run_segmentation_on_tiles(img, gt_mask, dont_care_mask, weights_path, args)
         return global_mask_aggregated, None, prompts_list
     else:
-        segmenter = run_gui(img, weights_path, args, gt_mask, prompts=prompts, dont_care_mask = dont_care_mask)
+        segmenter = run_gui(img, weights_path, args, gt_mask, prompts=prompts, dont_care_mask = dont_care_mask,filename=filename)
         segmenter.global_masks[segmenter.global_masks > 0] = 1
         points_used = segmenter.init_points - segmenter.remaining_points
         if args.point:

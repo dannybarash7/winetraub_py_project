@@ -5,21 +5,21 @@ SAMMED_2D = False
 SAM = False
 SAM2 = False
 #
-# rf_api_key = "R04BinsZcBZ6PsfKR2fP"
-# rf_workspace = "yolab-kmmfx"
-# rf_project_name = "paper_data" #"paper_data"
-# rf_dataset_type = "coco-segmentation"  # "png-mask-semantic"
-# version = 13
-
 rf_api_key = "R04BinsZcBZ6PsfKR2fP"
 rf_workspace = "yolab-kmmfx"
-rf_project_name = "paper_data_histology" #"paper_data"
+rf_project_name = "paper_data" #"paper_data"
 rf_dataset_type = "coco-segmentation"  # "png-mask-semantic"
-version = 2
+version = 13
+
+# rf_api_key = "R04BinsZcBZ6PsfKR2fP"
+# rf_workspace = "yolab-kmmfx"
+# rf_project_name = "paper_data_histology" #"paper_data"
+# rf_dataset_type = "coco-segmentation"  # "png-mask-semantic"
+# version = 2
 
 INTERACTIVE_POINT_PREDICTION = False
 DOWNSAMPLE_SAM_INPUT = False
-SEGMENT_TILES = True
+SEGMENT_TILES = False
 APPLY_MASKING = False
 SHRINK_BCC = False
 DEFAULT_NPOINTS = 1
