@@ -10,7 +10,7 @@ def rename_files_in_folder(folder_path):
             print(f"Renamed: {file} -> {new_name}")
 
 # Example usage
-folder_path = "/Users/dannybarash/Code/oct/AE_experiment/data/"  # Update with your folder path
+folder_path = "/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/"  # Update with your folder path
 rename_files_in_folder(folder_path)
-folder_path = "/Users/dannybarash/Code/oct/AE_experiment/data_overfit/"  # Update with your folder path
-rename_files_in_folder(folder_path)
+# folder_path = "/Users/dannybarash/Code/oct/AE_experiment/data_overfit/"  # Update with your folder path
+# rename_files_in_folder(folder_path)

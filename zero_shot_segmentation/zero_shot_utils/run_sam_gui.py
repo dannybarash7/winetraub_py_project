@@ -29,20 +29,20 @@ if SAMMED_2D:
     from SAM_Med2D.segment_anything.predictor_sammed import SammedPredictor
 segmenter = None
 
-def save_filename(filename, filepath="/Users/dannybarash/Code/oct/AE_experiment/data/filenames.txt"):
+def save_filename(filename, filepath="/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/filenames.txt"):
     with open(filepath, 'a') as file:
         file.write(filename + '\n')
 
 # Function to load data from placeholders
-def load_filenames(filepath="/Users/dannybarash/Code/oct/AE_experiment/data/filenames.txt"):
+def load_filenames(filepath="/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/filenames.txt"):
     if not os.path.isfile(filepath):
         return []
     with open(filepath, 'r') as file:
         filenames = [line.strip() for line in file.readlines()]
     return filenames
 
-def save_image(image, new_filename, directory="/Users/dannybarash/Code/oct/AE_experiment/data/images/"):
-    filenames_path = "/Users/dannybarash/Code/oct/AE_experiment/data/filenames.txt"
+def save_image(image, new_filename, directory="/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/images/"):
+    filenames_path = "/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/filenames.txt"
     # filenames = load_filenames(filenames_path)
     # new_filename = os.path.basename(filenames[-1])
     filepath = os.path.join(directory, new_filename)
@@ -54,7 +54,7 @@ def save_image(image, new_filename, directory="/Users/dannybarash/Code/oct/AE_ex
     save_filename(new_filename, filenames_path)
 
 
-def save_rectangle(rect, filepath="/Users/dannybarash/Code/oct/AE_experiment/data/rects.txt"):
+def save_rectangle(rect, filepath="/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/rects.txt"):
     with open(filepath, 'a') as file:
         rect_str = ','.join(map(str, rect))
         file.write(rect_str + '\n')
@@ -366,6 +366,62 @@ class Segmenter():
         box_1024 = box_np / np.array([W, H, W, H]) * 1024
         return image_embedding, box_1024
 
+    # @torch.no_grad()
+    # def medsam_inference(self, img, box):
+    #     H, W, _ = img.shape
+    #     img_embed, box_1024 = self.transform_img(img, box)
+    #     medsam_model = self.predictor.model
+    #     box_torch = torch.as_tensor(box_1024, dtype=torch.float, device=img_embed.device)
+    #     if len(box_torch.shape) == 2:
+    #         box_torch = box_torch[:, None, :]  # (B, 1, 4)
+    #     sparse_embeddings, dense_embeddings = medsam_model.prompt_encoder(
+    #         points=None,
+    #         boxes=box_torch,
+    #         masks=None,
+    #     )
+    #
+    #     # Placeholder for captured output
+    #     first_layer_output = None
+    #
+    #     # Define the hook function
+    #     def hook_fn(module, input, output):
+    #         global first_layer_output
+    #         first_layer_output = output.detach().cpu().numpy()  # Convert to NumPy
+    #         print(f"Captured output shape: {first_layer_output.shape}")
+    #         # Save the captured output to a NumPy file
+    #         path = f"/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/firstlayer_output_{self.filename}"
+    #         np.save(path, first_layer_output)
+    #         print(f"First layer output saved to {path}")
+    #
+    #     # Register the hook on the first layer
+    #     hook_handle = medsam_model.mask_decoder.transformer.layers[0].self_attn.register_forward_hook(hook_fn)
+    #     path = f"/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/sparse_embeddings_{self.filename}"
+    #     np.save(path, sparse_embeddings)
+    #     path = f"/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/dense_embeddings_{self.filename}"
+    #     np.save(path, dense_embeddings)
+    #     path = f"/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/img_embed_{self.filename}"
+    #     np.save(path, img_embed)
+    #     path = f"/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/image_pe_{self.filename}"
+    #     np.save(path, medsam_model.prompt_encoder.get_dense_pe())
+    #     low_res_logits, _ = medsam_model.mask_decoder(
+    #         image_embeddings=img_embed,  # (B, 256, 64, 64)
+    #         image_pe=medsam_model.prompt_encoder.get_dense_pe(),  # (1, 256, 64, 64)
+    #         sparse_prompt_embeddings=sparse_embeddings,  # (B, 2, 256)
+    #         dense_prompt_embeddings=dense_embeddings,  # (B, 256, 64, 64)
+    #         multimask_output=False,#True
+    #     )
+    #
+    #     low_res_pred = torch.sigmoid(low_res_logits)  # (1, 1, 256, 256)
+    #     low_res_pred = F.interpolate(
+    #         low_res_pred,
+    #         size=(H, W),
+    #         mode="bilinear",
+    #         align_corners=False,
+    #     )  # (1, 1, gt.shape)
+    #     low_res_pred = low_res_pred.squeeze().cpu().numpy()  # (256, 256)
+    #     medsam_seg = (low_res_pred > 0.5).astype(np.uint8)
+    #     return medsam_seg
+
     @torch.no_grad()
     def medsam_inference(self, img, box):
         H, W, _ = img.shape
@@ -380,40 +436,26 @@ class Segmenter():
             masks=None,
         )
 
-        # Placeholder for captured output
-        first_layer_output = None
+        # Load new values from numpy file
+        first_layer_override = np.load(f"/Users/dannybarash/Code/oct/AE_experiment/data/{self.filename}")
 
         # Define the hook function
         def hook_fn(module, input, output):
-            global first_layer_output
-            first_layer_output = output.detach().cpu().numpy()  # Convert to NumPy
-            print(f"Captured output shape: {first_layer_output.shape}")
-            # Save the captured output to a NumPy file
-            path = f"/Users/dannybarash/Code/oct/AE_experiment/data/first_layer_output_{self.filename}"
-            np.save(path, first_layer_output)
-            print(f"First layer output saved to {path}")
+            new_tensor = torch.tensor(first_layer_override, dtype=output.dtype, device=output.device)
+            return new_tensor
 
-        # Register the hook on the first layer
-        hook_handle = medsam_model.mask_decoder.transformer.layers[0].self_attn.register_forward_hook(hook_fn)
-        path = f"/Users/dannybarash/Code/oct/AE_experiment/data/sparse_embeddings_{self.filename}"
-        np.save(path, sparse_embeddings)
-        path = f"/Users/dannybarash/Code/oct/AE_experiment/data/dense_embeddings_{self.filename}"
-        np.save(path, dense_embeddings)
-        path = f"/Users/dannybarash/Code/oct/AE_experiment/data/img_embed_{self.filename}"
-        np.save(path, img_embed)
-        path = f"/Users/dannybarash/Code/oct/AE_experiment/data/image_pe_{self.filename}"
-        np.save(path, medsam_model.prompt_encoder.get_dense_pe())
+        # Register the hook to modify the first layer output
+        hook_handle = medsam_model.mask_decoder.transformer.layers[0].self_attn.register_forward_hook(
+            lambda module, input, output: hook_fn(module, input, output)
+        )
+
         low_res_logits, _ = medsam_model.mask_decoder(
             image_embeddings=img_embed,  # (B, 256, 64, 64)
             image_pe=medsam_model.prompt_encoder.get_dense_pe(),  # (1, 256, 64, 64)
             sparse_prompt_embeddings=sparse_embeddings,  # (B, 2, 256)
             dense_prompt_embeddings=dense_embeddings,  # (B, 256, 64, 64)
-            multimask_output=False,#True
+            multimask_output=False,  # True
         )
-
-
-
-
 
         low_res_pred = torch.sigmoid(low_res_logits)  # (1, 1, 256, 256)
 
@@ -425,6 +467,7 @@ class Segmenter():
         )  # (1, 1, gt.shape)
         low_res_pred = low_res_pred.squeeze().cpu().numpy()  # (256, 256)
         medsam_seg = (low_res_pred > 0.5).astype(np.uint8)
+
         return medsam_seg
 
     def get_mask_for_auto_rect(self):

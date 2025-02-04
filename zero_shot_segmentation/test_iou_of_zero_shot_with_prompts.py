@@ -51,11 +51,11 @@ visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
 visualize_input_vhist = True
 
-segment_virtual_histology = True
+segment_virtual_histology = False
 segment_bcc = False
 segment_real_histology = False
-segment_oct_flag = False  # not supported in bcc 3d segmentation
-continue_for_existing_images = False
+segment_oct_flag = True  # not supported in bcc 3d segmentation
+continue_for_existing_images = True
 # None or filename
 single_image_to_segment = None
 indices_to_segment  = range(1000)
