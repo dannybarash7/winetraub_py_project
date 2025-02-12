@@ -8,6 +8,7 @@ import torchvision.transforms as transforms
 import numpy as np
 
 # Set seeds for reproducibility
+USE_AE = True
 seed = 42  # Choose any fixed number
 torch.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)  # If using CUDA
@@ -16,7 +17,9 @@ np.random.seed(seed)
 
 checkpoint_path = "/cs/cs_groups/orenfr_group/barashd/train_ae/10.2/checkpoint_epoch_400.pth"
 if not os.path.exists(checkpoint_path):
-    checkpoint_path = "/Users/dannybarash/Downloads/checkpoint_epoch_400.pth"
+    checkpoint_path = "/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/12.2/checkpoint_epoch_400.pth"
+# checkpoint_path =""
+
 # 2. Training Setup
 root_folder = "/Users/dannybarash/Code/oct/AE_experiment/data_of_oct"
 num_workers = 0
@@ -113,7 +116,7 @@ class OCTHistologyDataset(Dataset):
 class SimpleAE(nn.Module):
     def __init__(self, input_shape, output_shape):
         super(SimpleAE, self).__init__()
-
+        print("Using MLP:")
         # Compute flattened sizes
         self.input_dim = np.prod(input_shape)  # Flattened input
         self.output_dim = np.prod(output_shape)  # Flattened output
@@ -121,13 +124,13 @@ class SimpleAE(nn.Module):
         print(f"input_shape:{input_shape}, input_dim:{self.input_dim}, output_dim:{self.output_dim}, output_shape={output_shape}",flush=True)
 
         self.mlp = nn.Sequential(
-            nn.Linear(self.input_dim, 512),
+            nn.Linear(self.input_dim, 256),
             nn.ReLU(),
-            nn.Linear(512, 512),
+            nn.Linear(256, 256),
             nn.ReLU(),
-            nn.Linear(512, 512),
+            nn.Linear(256, 256),
             nn.ReLU(),
-            nn.Linear(512, self.output_dim)
+            nn.Linear(256, self.output_dim)
         )
 
     def forward(self, x):
@@ -144,6 +147,38 @@ class SimpleAE(nn.Module):
         decoded = decoded.view(batch_size, *self.output_shape)
 
         return decoded
+
+class CNNVectorTransformer(nn.Module):
+    def __init__(self, input_dim, output_dim, hidden_channels=64, kernel_size=3):
+        super(CNNVectorTransformer, self).__init__()
+        
+        print("Using CNN:")
+        # First convolutional layer
+        self.conv1 = nn.Conv1d(in_channels=1, out_channels=hidden_channels, kernel_size=kernel_size, padding=1)
+        self.conv2 = nn.Conv1d(in_channels=hidden_channels, out_channels=hidden_channels, kernel_size=kernel_size,
+                               padding=1)
+
+        # Fully connected layers to transform to output size
+        self.fc1 = nn.Linear(input_dim * hidden_channels, 256)
+        self.fc2 = nn.Linear(256, output_dim)
+
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        # Reshape input to (batch, channels, length) for Conv1d
+        x = x.unsqueeze(1)  # Shape: (batch, 1, input_dim)
+
+        x = self.relu(self.conv1(x))
+        x = self.relu(self.conv2(x))
+
+        # Flatten before feeding into fully connected layers
+        x = x.view(x.size(0), -1)
+        x = self.relu(self.fc1(x))
+        x = self.fc2(x)  # Final output
+
+        return x
+
+
 
 
 
@@ -185,13 +220,21 @@ dataloader_val = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 # Define input and output dimensions dynamically
 sample_input, sample_target = train_dataset[0]
-input_dim = sample_input.shape[0]
-output_dim = sample_target.shape[0]
+# input_dim = sample_input.shape[0]
+# output_dim = sample_target.shape[0]
 
 # Initialize models and optimizer
 # Load model and optimizer
-ae = SimpleAE(input_shape=sample_input.shape, output_shape=sample_target.shape)
-optimizer = torch.optim.Adam(ae.parameters(), lr=init_lr)
+model = None
+if USE_AE:
+    model = SimpleAE(input_shape=sample_input.shape, output_shape=sample_target.shape)
+else:
+    # Example usage
+    input_dim = np.prod(sample_input.shape)  # Flattened input
+    output_dim = np.prod(sample_target.shape)  # Flattened output
+    model = CNNVectorTransformer(input_dim, output_dim)
+
+optimizer = torch.optim.Adam(model.parameters(), lr=init_lr)
 
 # Define scheduler before loading checkpoint
 
@@ -200,7 +243,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Load checkpoint if available
 #scheduler=None for cpu/cuda match
 print("loading checkpoint",flush=True)
-start_epoch, _ = load_checkpoint(ae, optimizer,device,scheduler=None)
+start_epoch, _ = load_checkpoint(model, optimizer, device, scheduler=None)
 # Override the learning rate after loading the checkpoint
 if overwrite_checkpoint_lr:
     new_lr = init_lr  # Set your desired learning rate
@@ -211,7 +254,7 @@ if overwrite_checkpoint_lr:
 criterion = nn.MSELoss()
 # Move model to the appropriate device
 print("Move to device",flush=True)
-ae.to(device)
+model.to(device)
 print("define LR...",flush=True)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
     optimizer,
@@ -249,40 +292,40 @@ def save_checkpoint(epoch, model, optimizer, scheduler, loss):
     }, checkpoint_path)
 
 def train_ae(num_epochs):
-    ae.train()
+    model.train()
     for epoch in range(num_epochs):
         epoch_loss = 0
         for step,(input_data, target) in enumerate(dataloader_train):
             optimizer.zero_grad()
             input_data, target = input_data.to(device), target.to(device)
-            output = ae(input_data)
+            output = model(input_data)
             loss = criterion(output, target)
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
 
         # Validation step
-        ae.eval()
+        model.eval()
         val_loss = 0
         with torch.no_grad():
             for input_data, target in dataloader_val:
                 input_data, target = input_data.to(device), target.to(device)
-                output = ae(input_data)
+                output = model(input_data)
                 loss = criterion(output, target)
                 val_loss += loss.item()
-        ae.train()
+        model.train()
         scheduler.step(epoch_loss)
 
         print(f"Epoch [{epoch + 1}/{num_epochs}], Train Loss: {epoch_loss / len(dataloader_train)}, Validation Loss: {val_loss / len(dataloader_val)}, LR: {scheduler.get_last_lr()[0]}",flush=True)
 
         # Save checkpoint
         if (epoch +1) % 100 == 0:
-            save_checkpoint(epoch + 1, ae, optimizer, scheduler, epoch_loss / len(dataloader_train))
+            save_checkpoint(epoch + 1, model, optimizer, scheduler, epoch_loss / len(dataloader_train))
 
 # Check for GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("device",flush=True)
-ae.to(device)
+model.to(device)
 print("Moved to device",flush=True)
 # Train the AE
 try:
@@ -290,7 +333,7 @@ try:
     pass
 except Exception as e:
     print(f"Error occurred: {e}", flush=True)
-ae.eval()
+model.eval()
 def measure_performance():
 
     root_path = "/cs/cs_groups/orenfr_group/barashd/train_ae/12.2/ae_output_validation"
@@ -302,7 +345,7 @@ def measure_performance():
     with torch.no_grad():
         for index, (input_data, target) in enumerate(dataloader_val):
             input_data, target = input_data.to(device), target.to(device)
-            ae_output = ae(input_data).detach().cpu().numpy()
+            ae_output = model(input_data).detach().cpu().numpy()
             # filename = validation_files[index]
             filename = filename_from_index(dataset, index)
             path = f"{root_path}/predicted_firstlayer_output_{filename}"
@@ -310,13 +353,14 @@ def measure_performance():
             np.save(path, ae_output)
         for index, (input_data, target) in enumerate(dataloader_train):
             input_data, target = input_data.to(device), target.to(device)
-            ae_output = ae(input_data).detach().cpu().numpy()
+            ae_output = model(input_data).detach().cpu().numpy()
             # filename = validation_files[index]
             filename = filename_from_index(dataset, index)
             path = f"{root_path}/predicted_firstlayer_output_{filename}"
             print(f"saved {path}",flush=True)
             np.save(path, ae_output)
 try:
-    measure_performance()
+#    measure_performance()
+    pass
 except Exception as e:
     print(f"Error occurred: {e}", flush=True)
