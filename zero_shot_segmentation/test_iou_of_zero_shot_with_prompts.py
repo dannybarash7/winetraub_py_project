@@ -55,7 +55,7 @@ segment_virtual_histology = False
 segment_bcc = False
 segment_real_histology = False
 segment_oct_flag = True  # not supported in bcc 3d segmentation
-continue_for_existing_images = True
+continue_for_existing_images = False
 # None or filename
 single_image_to_segment = None
 indices_to_segment  = range(1000)

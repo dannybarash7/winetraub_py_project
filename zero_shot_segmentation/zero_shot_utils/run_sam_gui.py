@@ -342,7 +342,7 @@ class Segmenter():
             masks, _, _ = self.predictor.predict(box=user_box, multimask_output=False)
             return masks
 
-    def transform_img(self, img_np, box_np):
+    def transform_img(self, img_np, box_np, save_output=False,overwrite_output=True):
         medsam_model = self.predictor.model.to(self.device)
         if len(img_np.shape) == 2:
             img_3c = np.repeat(img_np[:, :, None], 3, axis=-1)
@@ -361,71 +361,62 @@ class Segmenter():
             torch.tensor(img_1024).float().permute(2, 0, 1).unsqueeze(0).to(self.device)
         )
         with torch.no_grad():
+            hook_handle = self.add_hooks(medsam_model, overwrite_output, save_output)
             image_embedding = medsam_model.image_encoder(img_1024_tensor)
+            if hook_handle is not None:
+                hook_handle.remove()
         box_np = np.array([box_np])
         box_1024 = box_np / np.array([W, H, W, H]) * 1024
         return image_embedding, box_1024
 
-    # @torch.no_grad()
-    # def medsam_inference(self, img, box):
-    #     H, W, _ = img.shape
-    #     img_embed, box_1024 = self.transform_img(img, box)
-    #     medsam_model = self.predictor.model
-    #     box_torch = torch.as_tensor(box_1024, dtype=torch.float, device=img_embed.device)
-    #     if len(box_torch.shape) == 2:
-    #         box_torch = box_torch[:, None, :]  # (B, 1, 4)
-    #     sparse_embeddings, dense_embeddings = medsam_model.prompt_encoder(
-    #         points=None,
-    #         boxes=box_torch,
-    #         masks=None,
-    #     )
-    #
-    #     # Placeholder for captured output
-    #     first_layer_output = None
-    #
-    #     # Define the hook function
-    #     def hook_fn(module, input, output):
-    #         global first_layer_output
-    #         first_layer_output = output.detach().cpu().numpy()  # Convert to NumPy
-    #         print(f"Captured output shape: {first_layer_output.shape}")
-    #         # Save the captured output to a NumPy file
-    #         path = f"/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/firstlayer_output_{self.filename}"
-    #         np.save(path, first_layer_output)
-    #         print(f"First layer output saved to {path}")
-    #
-    #     # Register the hook on the first layer
-    #     hook_handle = medsam_model.mask_decoder.transformer.layers[0].self_attn.register_forward_hook(hook_fn)
-    #     path = f"/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/sparse_embeddings_{self.filename}"
-    #     np.save(path, sparse_embeddings)
-    #     path = f"/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/dense_embeddings_{self.filename}"
-    #     np.save(path, dense_embeddings)
-    #     path = f"/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/img_embed_{self.filename}"
-    #     np.save(path, img_embed)
-    #     path = f"/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/image_pe_{self.filename}"
-    #     np.save(path, medsam_model.prompt_encoder.get_dense_pe())
-    #     low_res_logits, _ = medsam_model.mask_decoder(
-    #         image_embeddings=img_embed,  # (B, 256, 64, 64)
-    #         image_pe=medsam_model.prompt_encoder.get_dense_pe(),  # (1, 256, 64, 64)
-    #         sparse_prompt_embeddings=sparse_embeddings,  # (B, 2, 256)
-    #         dense_prompt_embeddings=dense_embeddings,  # (B, 256, 64, 64)
-    #         multimask_output=False,#True
-    #     )
-    #
-    #     low_res_pred = torch.sigmoid(low_res_logits)  # (1, 1, 256, 256)
-    #     low_res_pred = F.interpolate(
-    #         low_res_pred,
-    #         size=(H, W),
-    #         mode="bilinear",
-    #         align_corners=False,
-    #     )  # (1, 1, gt.shape)
-    #     low_res_pred = low_res_pred.squeeze().cpu().numpy()  # (256, 256)
-    #     medsam_seg = (low_res_pred > 0.5).astype(np.uint8)
-    #     return medsam_seg
+    def add_hooks(self, medsam_model, overwrite_output, save_output):
+        ## Tensorboard
+        # from torch.utils.tensorboard import SummaryWriter
+        # writer = SummaryWriter('runs/visualizing_image_encoder/')
+        # writer.add_graph(
+        #     medsam_model.image_encoder,
+        #     (img_1024_tensor)
+        # )
+        # writer.close()
+        ## write output
+
+
+        # Register the hook on the first layer
+        hook_handle = None
+        if save_output:
+            def hook_fn(module, input, output):
+                global first_layer_output
+                first_layer_output = output.detach().cpu().numpy()  # Convert to NumPy
+                print(f"Captured input shape: {first_layer_output.shape}")
+                # Save the captured output to a NumPy file
+                path = f"/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/imagenc_firstlayer_output_vhist_{self.filename}"
+                np.save(path, first_layer_output)
+
+            hook_handle = medsam_model.image_encoder.patch_embed.register_forward_hook(hook_fn)
+        if overwrite_output:
+            p = f"/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/12.2/ae_output_validation/predicted_firstlayer_output_{self.filename.split('.')[0][:-4]}.npy"
+            if os.path.exists(p):
+                first_layer_override = np.load(p)
+
+                # Define the hook function
+                def hook_fn(module, input, output):
+                    new_tensor = torch.tensor(first_layer_override, dtype=output.dtype, device=output.device)
+                    new_tensor = new_tensor.squeeze(1)
+                    # new_zero_tensor = torch.zeros_like(new_tensor)
+                    return new_tensor
+
+                # Register the hook to modify the first layer output
+                hook_handle = medsam_model.image_encoder.patch_embed.register_forward_hook(
+                    lambda module, input, output: hook_fn(module, input, output)
+                )
+            else:
+                print(f"Could not find {p}")
+        return hook_handle
 
     @torch.no_grad()
     def medsam_inference(self, img, box):
         H, W, _ = img.shape
-        img_embed, box_1024 = self.transform_img(img, box)
+        img_embed, box_1024 = self.transform_img(img, box, save_output=False, overwrite_output=True)
         medsam_model = self.predictor.model
         box_torch = torch.as_tensor(box_1024, dtype=torch.float, device=img_embed.device)
         if len(box_torch.shape) == 2:
@@ -436,25 +427,13 @@ class Segmenter():
             masks=None,
         )
 
-        # Load new values from numpy file
-        first_layer_override = np.load(f"/Users/dannybarash/Code/oct/AE_experiment/data/{self.filename}")
 
-        # Define the hook function
-        def hook_fn(module, input, output):
-            new_tensor = torch.tensor(first_layer_override, dtype=output.dtype, device=output.device)
-            return new_tensor
-
-        # Register the hook to modify the first layer output
-        hook_handle = medsam_model.mask_decoder.transformer.layers[0].self_attn.register_forward_hook(
-            lambda module, input, output: hook_fn(module, input, output)
-        )
 
         low_res_logits, _ = medsam_model.mask_decoder(
             image_embeddings=img_embed,  # (B, 256, 64, 64)
             image_pe=medsam_model.prompt_encoder.get_dense_pe(),  # (1, 256, 64, 64)
             sparse_prompt_embeddings=sparse_embeddings,  # (B, 2, 256)
             dense_prompt_embeddings=dense_embeddings,  # (B, 256, 64, 64)
-            multimask_output=False,  # True
         )
 
         low_res_pred = torch.sigmoid(low_res_logits)  # (1, 1, 256, 256)
