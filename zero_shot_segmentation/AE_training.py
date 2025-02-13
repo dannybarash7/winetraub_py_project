@@ -9,6 +9,9 @@ import numpy as np
 
 # Set seeds for reproducibility
 USE_AE = True
+USE_MLP= False
+USE_CNN= False
+
 seed = 42  # Choose any fixed number
 torch.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)  # If using CUDA
@@ -112,10 +115,51 @@ class OCTHistologyDataset(Dataset):
         return torch.tensor(input_data, dtype=torch.float32), torch.tensor(target, dtype=torch.float32)
 
 
-# 1. Define the Autoencoder (AE)
 class SimpleAE(nn.Module):
     def __init__(self, input_shape, output_shape):
         super(SimpleAE, self).__init__()
+
+        # Compute flattened sizes
+        self.input_dim = np.prod(input_shape)  # Flattened input
+        self.output_dim = np.prod(output_shape)  # Flattened output
+        self.output_shape = output_shape  # Store for reshaping later
+
+        self.encoder = nn.Sequential(
+            nn.Linear(self.input_dim, 512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU()
+        )
+
+        self.decoder = nn.Sequential(
+            nn.Linear(128, 256),
+            nn.ReLU(),
+            nn.Linear(256, 512),
+            nn.ReLU(),
+            nn.Linear(512, self.output_dim)  # Output layer size should match target
+        )
+
+    def forward(self, x):
+        batch_size = x.shape[0]
+
+        # Flatten input
+        x = x.view(batch_size, -1)  # Flatten from (B, C, H, W) to (B, input_dim)
+        encoded = self.encoder(x)
+
+        # Decode
+        decoded = self.decoder(encoded)
+
+        # Reshape output back to expected size
+        decoded = decoded.view(batch_size, *self.output_shape)
+
+        return decoded
+
+# 1. Define the Autoencoder (AE)
+class SimpleMLP(nn.Module):
+    def __init__(self, input_shape, output_shape):
+        super(SimpleMLP, self).__init__()
         print("Using MLP:")
         # Compute flattened sizes
         self.input_dim = np.prod(input_shape)  # Flattened input
@@ -228,7 +272,9 @@ sample_input, sample_target = train_dataset[0]
 model = None
 if USE_AE:
     model = SimpleAE(input_shape=sample_input.shape, output_shape=sample_target.shape)
-else:
+if USE_MLP:
+    model = SimpleMLP(input_shape=sample_input.shape, output_shape=sample_target.shape)
+if USE_CNN:
     # Example usage
     input_dim = np.prod(sample_input.shape)  # Flattened input
     output_dim = np.prod(sample_target.shape)  # Flattened output
