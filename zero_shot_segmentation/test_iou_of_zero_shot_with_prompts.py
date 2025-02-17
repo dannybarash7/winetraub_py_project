@@ -68,6 +68,9 @@ raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-danny
 
 if MEDSAM:
     CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/medsam/MedSAM/work_dir/MedSAM/medsam_vit_b.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/option1_no_bias_reg_medsam_vit_b_updated.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/option3_medsam_vit_b_updated.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/option4_medsam_vit_b_updated.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 if SAM:
     CHECKPOINT_PATH = "weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 if SAMMED_2D:
@@ -338,7 +341,7 @@ def main(args):
     assert segment_oct or segment_virtual_histology or segment_real_histology
     global roboflow_next_img, df, output_image_dir, total_dice_oct, total_dice_vhist, total_iou_oct, total_iou_vhist, \
         total_iou_histology, total_dice_histology, total_samples_oct, total_samples_vhist, total_samples_histology
-
+    print(f"args: {args}")
     download_images_and_masks()
     # Get the list of image files
     image_files = [f for f in os.listdir(roboflow_annot_dataset_dir) if f.endswith(".jpg")]

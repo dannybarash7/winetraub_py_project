@@ -158,12 +158,16 @@ class Segmenter():
                 args.image_size = 256
                 args.encoder_adapter = True
                 args.sam_checkpoint = "/Users/dannybarash/Code/oct/medsam/sam-med2d/OCT2Hist_UseModel/SAM_Med2D/pretrain_model/sam-med2d_b.pth"
+                print(f"Sam checkpoint path: {args.sam_checkpoint}")
                 model = sammed_model_registry["vit_b"](args)
                 self.sam = model  # sam_model_registry["vit_h"](checkpoint=weights_path)
             if MEDSAM:
                 self.sam = sam_model_registry["vit_b"](checkpoint=weights_path)
+                print(f"Sam checkpoint path: {weights_path}")
             if SAM:
                 self.sam = sam_model_registry["vit_h"](checkpoint=weights_path)
+                print(f"Sam checkpoint path: {weights_path}")
+
             if SAM2:
                 pass
             if not grid_prediction_flag:
@@ -342,7 +346,7 @@ class Segmenter():
             masks, _, _ = self.predictor.predict(box=user_box, multimask_output=False)
             return masks
 
-    def transform_img(self, img_np, box_np, save_output=False,overwrite_output=True):
+    def transform_img(self, img_np, box_np, save_output,overwrite_output):
         medsam_model = self.predictor.model.to(self.device)
         if len(img_np.shape) == 2:
             img_3c = np.repeat(img_np[:, :, None], 3, axis=-1)
@@ -387,7 +391,7 @@ class Segmenter():
             def hook_fn(module, input, output):
                 global first_layer_output
                 first_layer_output = output.detach().cpu().numpy()  # Convert to NumPy
-                print(f"Captured input shape: {first_layer_output.shape}")
+                print(f"Captured image_encoder input shape: {first_layer_output.shape}")
                 # Save the captured output to a NumPy file
                 path = f"/Users/dannybarash/Code/oct/AE_experiment/data_of_oct/imagenc_firstlayer_output_vhist_{self.filename}"
                 np.save(path, first_layer_output)
@@ -400,6 +404,7 @@ class Segmenter():
 
                 # Define the hook function
                 def hook_fn(module, input, output):
+                    print(f"Overwriting image_encoder output with {p}...")
                     new_tensor = torch.tensor(first_layer_override, dtype=output.dtype, device=output.device)
                     new_tensor = new_tensor.squeeze(1)
                     # new_zero_tensor = torch.zeros_like(new_tensor)
@@ -409,14 +414,19 @@ class Segmenter():
                 hook_handle = medsam_model.image_encoder.patch_embed.register_forward_hook(
                     lambda module, input, output: hook_fn(module, input, output)
                 )
+
             else:
                 print(f"Could not find {p}")
         return hook_handle
 
     @torch.no_grad()
     def medsam_inference(self, img, box):
+        # Save img and box to files
+        # np.save(f"saved_oct_input_image_{self.filename}.npy",img)
+        # np.save(f"saved_oct_box_{self.filename}.npy", box)
+
         H, W, _ = img.shape
-        img_embed, box_1024 = self.transform_img(img, box, save_output=False, overwrite_output=True)
+        img_embed, box_1024 = self.transform_img(img, box, save_output=False, overwrite_output=False)
         medsam_model = self.predictor.model
         box_torch = torch.as_tensor(box_1024, dtype=torch.float, device=img_embed.device)
         if len(box_torch.shape) == 2:
@@ -426,8 +436,6 @@ class Segmenter():
             boxes=box_torch,
             masks=None,
         )
-
-
 
         low_res_logits, _ = medsam_model.mask_decoder(
             image_embeddings=img_embed,  # (B, 256, 64, 64)
