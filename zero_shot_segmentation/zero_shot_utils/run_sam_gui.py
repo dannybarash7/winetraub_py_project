@@ -423,7 +423,8 @@ class Segmenter():
     def medsam_inference(self, img, box):
         # Save img and box to files
         # np.save(f"saved_oct_input_image_{self.filename}.npy",img)
-        # np.save(f"saved_oct_box_{self.filename}.npy", box)
+        # np.save(f"saved_vhist_box_{self.filename}.npy", box)
+        # np.save(f"saved_vhist_input_image_{self.filename}.npy", img)
 
         H, W, _ = img.shape
         img_embed, box_1024 = self.transform_img(img, box, save_output=False, overwrite_output=False)

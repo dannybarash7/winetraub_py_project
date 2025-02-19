@@ -51,7 +51,7 @@ visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
 visualize_input_vhist = True
 
-segment_virtual_histology = False
+segment_virtual_histology = True
 segment_bcc = False
 segment_real_histology = False
 segment_oct_flag = True  # not supported in bcc 3d segmentation
@@ -68,6 +68,8 @@ raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-danny
 
 if MEDSAM:
     CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/medsam/MedSAM/work_dir/MedSAM/medsam_vit_b.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/checkpoint_epoch_006_patch_embed.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/checkpoint_epoch_002_transformer_block_0.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
     # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/option1_no_bias_reg_medsam_vit_b_updated.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
     # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/option3_medsam_vit_b_updated.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
     # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/option4_medsam_vit_b_updated.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
