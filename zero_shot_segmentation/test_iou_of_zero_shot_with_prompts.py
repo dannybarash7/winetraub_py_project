@@ -51,7 +51,7 @@ visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
 visualize_input_vhist = True
 
-segment_virtual_histology = True
+segment_virtual_histology = False
 segment_bcc = False
 segment_real_histology = False
 segment_oct_flag = True  # not supported in bcc 3d segmentation
@@ -69,10 +69,28 @@ raw_oct_dataset_dir = "/Users/dannybarash/Library/CloudStorage/GoogleDrive-danny
 if MEDSAM:
     CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/medsam/MedSAM/work_dir/MedSAM/medsam_vit_b.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
     # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/checkpoint_epoch_006_patch_embed.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/checkpoint_epoch_006_patch_embed_transformer_block_0.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
     # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/checkpoint_epoch_002_transformer_block_0.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
-    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/option1_no_bias_reg_medsam_vit_b_updated.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
-    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/option3_medsam_vit_b_updated.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
-    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/option4_medsam_vit_b_updated.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/checkpoint_epoch_009_transformer_block_end.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/checkpoint_epoch_004_patch_embed_randomize.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/checkpoint_epoch_006_patch_embed_fake_B.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/checkpoint_epoch_009_embed_randomize_fake_B.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/candidate_a.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/candidate_b.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/images/ts_training/22.2/ce_and_segmentation_loss_1e-3/latest_checkpoint.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/images/ts_training/22.2/only_ce_loss_1e_3/latest_checkpoint.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/images/ts_training/22.2/only_segmentation_loss_1e-3/latest_checkpoint.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/experiments_25_02_25/ce_seg_loss_rectRand_predDec_weightDecay5e-4/latest_checkpoint.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/experiments_25_02_25/ce_seg_loss_rectRand_predEmbed_predDec/latest_checkpoint.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/experiments_25_02_25/ce_seg_loss_rectRand_predDec_lr1e-4/latest_checkpoint.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/experiments_25_02_25/ce_seg_loss_rectRand_predEmbed_predDec_initLR1e-4_weightDecay5e-4/latest_checkpoint.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+
+    #4 experiments to repeat with dataset version 7:
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/experiments_25_02_25/ce_seg_loss_rectRand_predEmbed_predDec_initLR1e-4_weightDecay5e-4/latest_checkpoint.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/experiments_25_02_25/ce_seg_loss_rectRand_predDec_lr1e-4/latest_checkpoint.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/candidate_a.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+    # CHECKPOINT_PATH = "/Users/dannybarash/Downloads/candidate_b.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
+
 if SAM:
     CHECKPOINT_PATH = "weights/sam_vit_h_4b8939.pth"  # os.path.join("weights", "sam_vit_h_4b8939.pth")
 if SAMMED_2D:
@@ -174,6 +192,10 @@ def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask, prompts,
     if mask_true is None or mask_true.sum().sum() == 0:
         print(f"Could not segment OCT image {image_path}.")
     else:
+        # out_dir_gt = os.path.join(output_image_dir,"gt_masks")
+        # os.makedirs(out_dir_gt, exist_ok=True)
+        # out_filepath = os.path.join(out_dir_gt,f"gt_mask_{image_name}.npy")
+        # np.save(out_filepath, epidermis_mask)
         epidermis_iou_oct, dice, best_mask = single_or_multiple_predictions(epidermis_mask, oct_mask, EPIDERMIS,
                                                                             dont_care_mask=dont_care_mask)
         if bcc_segmentation is not None:
