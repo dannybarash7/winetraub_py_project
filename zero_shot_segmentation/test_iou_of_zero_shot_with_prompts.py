@@ -501,31 +501,24 @@ def main(args):
 
 
 def get_annotations(dataset, oct_fname):
+    epidermis_mask = None
+    dont_care_mask = None
+    bcc_mask = None
     if ANNOTATED_DATA:
         oct_data = dataset.df[dataset.df.img_filename == oct_fname]
         epidermis_data = oct_data[oct_data.cat_name == "epidermis"].ann_segmentation.values[0][0]
         epidermis_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], epidermis_data)
+        dont_care_mask = numpy.zeros(roboflow_next_img.shape[:2], dtype=bool)
         if 'hair' in oct_data.cat_name.unique():
             hair_annotations = oct_data[oct_data.cat_name == "hair"].ann_segmentation.values
-            dont_care_mask = numpy.zeros(roboflow_next_img.shape[:2], dtype=bool)
-
             for hair_annotation in hair_annotations:
                 hair_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], hair_annotation[0])
                 dont_care_mask = dont_care_mask | hair_mask
 
             epidermis_mask = epidermis_mask & (~dont_care_mask)
-        else:
-            dont_care_mask = None
         if 'bcc' in oct_data.cat_name.unique():
             bcc_data = oct_data[oct_data.cat_name == "bcc"].ann_segmentation.values[0][0]
             bcc_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], bcc_data)
-        else:
-            dont_care_mask = None
-            bcc_mask = None
-    else:
-        epidermis_mask = None
-        dont_care_mask = None
-        bcc_mask = None
     return bcc_mask, dont_care_mask, epidermis_mask
 
 
