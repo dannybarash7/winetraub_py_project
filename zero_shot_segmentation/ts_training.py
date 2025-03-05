@@ -302,16 +302,26 @@ def save_checkpoint(student, teacher, optimizer, scheduler, epoch, config):
         'scheduler_state_dict': scheduler.state_dict()
     }, path)
 
+def save_model(student, dirpath):
+    path = os.path.join(dirpath, "latest_model.pth")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    torch.save(student.state_dict(), path)
+
 
 
 def load_checkpoint(student, teacher, optimizer, scheduler, config):
+    # save_model(student, os.path.dirname(config["load_checkpoint_path"]))
     load_path = config["load_checkpoint_path"] if os.path.exists(config["load_checkpoint_path"]) \
         else os.path.join(config["output_dir_path"], "latest_checkpoint.pth")
     if os.path.exists(load_path):
-        checkpoint = torch.load(load_path, weights_only=True,map_location=torch.device('cpu'))
+
+        checkpoint = torch.load(load_path, weights_only=True,map_location=device)
         student.load_state_dict(checkpoint['student_state_dict'])
         teacher.load_state_dict(checkpoint['teacher_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if config["reinit_lr"]:
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = config["init_lr"]  # Update learning rate
         scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
         start_epoch = checkpoint['epoch'] + 1
         print(f"Loaded checkpoint from epoch {checkpoint['epoch']}")
@@ -545,9 +555,10 @@ def main():
     shuffle_train = True
     num_workers = batch_size*2 if running_on_cluster else 0
     pin_memory = False
-    epochs_between_save = 25
-    epochs_between_val = 1
-    init_lr = 1e-3
+    epochs_between_save = 20
+    epochs_between_val = 20
+    init_lr = 1e-5
+    reinit_lr = True
     prediction_threshold = 0.5
     use_scheduler = True
     patience_scheduler = 10
@@ -568,7 +579,7 @@ def main():
         "freeze_mask_decoder": False,
         "weight_decay": 1e-4,
         "feature_predictor_mlp": False,
-        "update_teacher_flag": False
+        "update_teacher_flag": False,
     }
 
     # Gather experiment configuration into one dictionary.
@@ -583,6 +594,7 @@ def main():
         "epochs_between_save": epochs_between_save,
         "epochs_between_val": epochs_between_val,
         "init_lr": init_lr,
+        "reinit_lr": reinit_lr,
         "prediction_threshold": prediction_threshold,
         "use_scheduler": use_scheduler,
         "patience_scheduler": patience_scheduler,

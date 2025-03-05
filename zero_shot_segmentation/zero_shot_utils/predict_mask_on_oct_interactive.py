@@ -274,16 +274,10 @@ def preprocess_histology(dont_care_mask, oct_image, warped_mask_true):
     cropped_dont_care_mask = crop(dont_care_mask, **crop_args)
     return crop_args, cropped_dont_care_mask, cropped_histology_gt, cropped_histology
 
-
-def save_filename(filename, filepath="/Users/dannybarash/Code/oct/AE_experiment/data/filenames.txt"):
-    with open(filepath, 'a') as file:
-        file.write(filename + '\n')
-
-def predict_histology(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None, dont_care_mask = None):
+def predict_histology(histology_image,filename, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None, prompts = None, dont_care_mask = None):
     # Load OCT image
-    histology_image = cv2.imread(oct_input_image_path)
-    save_filename(oct_input_image_path)
-    filename = oct_input_image_path.split('/')[-1]
+    # histology_image = cv2.imread(oct_input_image_path)
+    # filename = oct_input_image_path.split('/')[-1]
     # Utility functions to handle file operations
 
 

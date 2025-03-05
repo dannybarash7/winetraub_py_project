@@ -349,6 +349,10 @@ def calculate_iou_for_multiple_predictions(mask_true, mask_predictions, class_id
             best_mask = mask_pred
     return max_iou, max_dice, best_mask
 
+def extract_oct_base_name(filename, st):
+    name = filename.replace(st, "")
+    i = name.find("_A")
+    return name[:i]
 
 def single_or_multiple_predictions(mask_true, mask_predictions, class_id, dont_care_mask):
     if isinstance(mask_predictions, list):

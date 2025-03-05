@@ -36,7 +36,7 @@ from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, 
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
 from zero_shot_segmentation.zero_shot_utils.predict_mask_on_oct_interactive import predict_oct, predict_histology
 from zero_shot_segmentation.zero_shot_utils.utils import single_or_multiple_predictions, extract_filename_prefix, \
-    bounding_rectangle, interpolate_masks
+    bounding_rectangle, interpolate_masks, extract_oct_base_name
 
 sys.path.append('./OCT2Hist_UseModel')
 sys.path.append('./zero_shot_segmentation')
@@ -55,7 +55,7 @@ segment_virtual_histology = False
 segment_bcc = False
 segment_real_histology = False
 segment_oct_flag = True  # not supported in bcc 3d segmentation
-continue_for_existing_images = False
+continue_for_existing_images = True
 # None or filename
 single_image_to_segment = None
 indices_to_segment  = range(1000)
@@ -165,13 +165,13 @@ def segment_histology(image_path, epidermis_mask, image_name, dont_care_mask, pr
     # plt.close()
 
 
-def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask):
+def segment_oct(oct_image, filename, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask):
     global output_image_dir, total_iou_vhist, total_dice_vhist
     print("OCT segmentation")
 
     (  oct_mask, _, cropped_histology_gt, cropped_oct_image, n_points_used, mask_true,
          prompts, crop_args, no_gel_oct, bcc_segmentation, cropped_bcc_mask_true) = predict_oct(
-        image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=segment_virtual_histology,
+        oct_image, filename, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=segment_virtual_histology,
         output_vhist_path=None, prompts=prompts, vhist_path=None, bcc_mask_true=bcc_mask)
 
     fpath = f'{os.path.join(output_image_dir, image_name)}_no_gel_oct.png'
@@ -190,7 +190,7 @@ def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask, prompts,
     # Calculate IoU for each class# DERMIS
     epidermis_mask = cropped_histology_gt
     if mask_true is None or mask_true.sum().sum() == 0:
-        print(f"Could not segment OCT image {image_path}.")
+        print(f"Could not segment OCT image {filename}.")
     else:
         # out_dir_gt = os.path.join(output_image_dir,"gt_masks")
         # os.makedirs(out_dir_gt, exist_ok=True)
@@ -239,7 +239,7 @@ def segment_oct(image_path, epidermis_mask, image_name, dont_care_mask, prompts,
     return prompts
 
 
-def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, prompts, bcc_mask, vhist_image_name):
+def segment_vhist(oct_image, filename, epidermis_mask, oct_image_name, dont_care_mask, prompts, bcc_mask, vhist_image_name):
     global output_image_dir, total_iou_vhist, total_dice_vhist
     # v. histology segmentation
     print("virtual histology segmentation")
@@ -252,7 +252,7 @@ def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, pr
     (cropped_vhist_mask, cropped_vhist, cropped_vhist_mask_true, cropped_oct_image, n_points_used,
      warped_vhist_mask_true, prompts, crop_args,
      no_gel_oct, bcc_segmentation, cropped_bcc_mask_true) = predict_oct(
-        image_path, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=segment_virtual_histology,
+        oct_image, filename, epidermis_mask, args=args, weights_path=CHECKPOINT_PATH, create_vhist=segment_virtual_histology,
         output_vhist_path=vhist_path_out, prompts=prompts, vhist_path=vhist_path_in, bcc_mask_true=bcc_mask)
 
     fpath = f'{os.path.join(output_image_dir, oct_image_name)}_no_gel_oct.png'
@@ -273,6 +273,7 @@ def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, pr
     if visualize_input_vhist:
         plt.figure(figsize=(5, 5))
         cropped_vhist = cv2.cvtColor(cropped_vhist, cv2.COLOR_BGR2RGB)
+        cv2.imwrite(f'{os.path.join(output_image_dir, oct_image_name)}_cropped_vhist.png', cropped_vhist)
         plt.imshow(cropped_vhist)
         cropped_vhist = cv2.cvtColor(cropped_vhist, cv2.COLOR_BGR2RGB)
         show_mask(cropped_vhist_mask_true, plt.gca(), color_arr=COLORS.PREDICTED_EPIDERMISE_BLUE)
@@ -283,7 +284,7 @@ def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, pr
         plt.close('all')
 
     if len(cropped_vhist_mask) == 0:
-        print(f"Could not segment {image_path}.")
+        print(f"Could not segment {filename}.")
         return
 
     if not ANNOTATED_DATA:
@@ -297,7 +298,7 @@ def segment_vhist(image_path, epidermis_mask, oct_image_name, dont_care_mask, pr
     else:
         dice_bcc = np.nan
     if best_mask is None:
-        print(f"Could not calculate iou for {image_path}.")
+        print(f"Could not calculate iou for {filename}.")
         return
 
     # get bbox
@@ -363,7 +364,7 @@ def file_exist(oct_fname, domain_dice_str):  # domain_dice_str = "dice_oct" | "d
 
 def main(args):
     assert segment_oct or segment_virtual_histology or segment_real_histology
-    global roboflow_next_img, df, output_image_dir, total_dice_oct, total_dice_vhist, total_iou_oct, total_iou_vhist, \
+    global oct_image, df, output_image_dir, total_dice_oct, total_dice_vhist, total_iou_oct, total_iou_vhist, \
         total_iou_histology, total_dice_histology, total_samples_oct, total_samples_vhist, total_samples_histology
     print(f"args: {args}")
     download_images_and_masks()
@@ -436,7 +437,8 @@ def main(args):
         print(f"\nimages processed: {images_processed}, next image {ds_idx}")
         # image_name = f"frame_{ds_idx:04}.png"
         # image_path = os.path.join(updated_rf_dir, updated_oct_fname)
-        roboflow_next_img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        oct_image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        filename = image_path.split('/')[-1]
         # dataset_image_idx = int(oct_fname.split('_')[1])
         bcc_mask, dont_care_mask, epidermis_mask = get_annotations(dataset, oct_fname, )
         if not segment_bcc:
@@ -452,10 +454,11 @@ def main(args):
         #     # new = bcc_mask != curr_bcc_mask #
         #     dont_care_mask = interpolate_masks(prev_dont_care_mask, dont_care_mask, weight)
         #     epidermis_mask = interpolate_masks(prev_epidermis_mask, epidermis_mask, weight)
+        skip_oct = continue_for_existing_images and does_column_exist(oct_fname,"dice_oct")
 
         if visualize_input_gt:
             plt.figure(figsize=(5, 5))
-            plt.imshow(roboflow_next_img, cmap='gray')
+            plt.imshow(oct_image, cmap='gray')
             show_mask(epidermis_mask, plt.gca(), color_arr=COLORS.PREDICTED_EPIDERMISE_BLUE)
             plt.axis('off')
             plt.suptitle(f"Input oct and ground truth mask")
@@ -464,17 +467,20 @@ def main(args):
             plt.close('all')
         if visualize_input_gt and bcc_mask is not None:
             plt.figure(figsize=(5, 5))
-            plt.imshow(roboflow_next_img, cmap='gray')
+            plt.imshow(oct_image, cmap='gray')
             show_mask(bcc_mask, plt.gca(), color_arr=COLORS.PREDICTED_EPIDERMISE_BLUE)
             plt.axis('off')
             plt.suptitle(f"Input oct and ground truth mask")
             plt.title(f"{image_name}")
             plt.savefig(f'{os.path.join(output_image_dir, image_name)}_input_gt.png')
             plt.close('all')
-        skip_oct = continue_for_existing_images and file_exist(oct_fname, "dice_oct")
         if segment_oct_flag and not skip_oct:
-            prompts = segment_oct(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask)
-            total_samples_oct += 1
+            try:
+                prompts = segment_oct(oct_image, filename, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask)
+                total_samples_oct += 1
+            except Exception as e:
+                print(f"error during oct segmentation {filename}:{e}")
+
         else:
             print(f"skipping oct segmentation")
         if segment_real_histology:
@@ -483,16 +489,22 @@ def main(args):
                 file_name = image_name[:-1] + "B.jpg"
                 image_path_hist = os.path.join(raw_oct_dataset_dir, file_name)
                 # histology segmentation
-                segment_histology(image_path_hist, epidermis_mask, image_name, dont_care_mask, prompts)
+                oct_image = cv2.imread(image_path_hist, cv2.IMREAD_UNCHANGED)
+                filename = image_path.split('/')[-1]
+                segment_histology(oct_image,filename, epidermis_mask, image_name, dont_care_mask, prompts)
                 total_samples_histology += 1
             else:
                 print(f"skipping histology segmentation")
         if segment_virtual_histology:
-            skip_vhist = continue_for_existing_images and file_exist(oct_fname, "dice_oct")
+            skip_vhist = continue_for_existing_images and does_column_exist(oct_fname, "dice_vhist")
             if not skip_vhist:
-                segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask,
-                              vhist_image_name)
-                total_samples_vhist += 1
+                try:
+                    segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask,
+                                  vhist_image_name)
+                    total_samples_vhist += 1
+                except Exception as e:
+                    print(f"error during oct segmentation {filename}:{e}")
+
             else:
                 print(f"skipping virtual histology segmentation")
         df.to_csv(os.path.join(output_image_dir, 'iou_scores.csv'), index=True)
@@ -507,18 +519,18 @@ def get_annotations(dataset, oct_fname):
     if ANNOTATED_DATA:
         oct_data = dataset.df[dataset.df.img_filename == oct_fname]
         epidermis_data = oct_data[oct_data.cat_name == "epidermis"].ann_segmentation.values[0][0]
-        epidermis_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], epidermis_data)
-        dont_care_mask = numpy.zeros(roboflow_next_img.shape[:2], dtype=bool)
+        epidermis_mask = coco_mask_to_numpy(oct_image.shape[:2], epidermis_data)
+        dont_care_mask = numpy.zeros(oct_image.shape[:2], dtype=bool)
         if 'hair' in oct_data.cat_name.unique():
             hair_annotations = oct_data[oct_data.cat_name == "hair"].ann_segmentation.values
             for hair_annotation in hair_annotations:
-                hair_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], hair_annotation[0])
+                hair_mask = coco_mask_to_numpy(oct_image.shape[:2], hair_annotation[0])
                 dont_care_mask = dont_care_mask | hair_mask
 
             epidermis_mask = epidermis_mask & (~dont_care_mask)
         if 'bcc' in oct_data.cat_name.unique():
             bcc_data = oct_data[oct_data.cat_name == "bcc"].ann_segmentation.values[0][0]
-            bcc_mask = coco_mask_to_numpy(roboflow_next_img.shape[:2], bcc_data)
+            bcc_mask = coco_mask_to_numpy(oct_image.shape[:2], bcc_data)
     return bcc_mask, dont_care_mask, epidermis_mask
 
 
@@ -652,6 +664,9 @@ if __name__ == "__main__":
     group.add_argument("--box", action="store_true", help="Specify a box.")
     group.add_argument("--grid", action="store_true", help="Specify a grid.")
     args = parser.parse_args()
+    output_image_dir = args.output_dir
+    if not os.path.exists(output_image_dir):
+        os.makedirs(output_image_dir)
     if MEDSAM and args.point:
         raise Exception("MedSam does not support points")
     if not args.point and not args.box and not args.grid:
