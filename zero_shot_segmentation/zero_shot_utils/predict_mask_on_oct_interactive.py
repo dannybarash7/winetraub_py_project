@@ -177,11 +177,11 @@ def crop_mask_to_non_black_values(cropped_bcc_mask_true, virtual_histology_image
     return updated_mask
 
 
-def predict_oct(oct_input_image_path, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None,
+def predict_oct(oct_image, filename, mask_true, weights_path, args, create_vhist = True, output_vhist_path = None,
                 prompts = None, dont_care_mask = None, vhist_path = None, bcc_mask_true = None):
     # Load OCT image
-    oct_image = cv2.imread(oct_input_image_path)
-    filename = oct_input_image_path.split('/')[-1]
+    # oct_image = cv2.imread(oct_input_image_path)
+    # filename = oct_input_image_path.split('/')[-1]
     # OCT image's pixel size
     microns_per_pixel_z = 1
     microns_per_pixel_x = 1

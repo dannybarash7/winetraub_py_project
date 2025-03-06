@@ -29,8 +29,9 @@ from tqdm import tqdm
 
 from OCT2Hist_UseModel.utils.crop import crop
 from OCT2Hist_UseModel.utils.masking import show_mask, boolean_mask_image_to_boolean_outline_image
+from zero_shot_segmentation import consts
 from zero_shot_segmentation.consts import MEDSAM, SAMMED_2D, SAM, COLORS, ANNOTATED_DATA, \
-    ROBOFLOW_ANNOT_DATASET_DIR, CROP_HISTOLOGY, RUN_FIVE_TIMES, SAM2, DEFAULT_NPOINTS
+    ROBOFLOW_ANNOT_DATASET_DIR, CROP_HISTOLOGY, RUN_FIVE_TIMES, SAM2, DEFAULT_NPOINTS, segmentation_class
 from zero_shot_segmentation.zero_shot_utils.ds_utils import coco_mask_to_numpy, download_images_and_masks
 
 sys.path.append("./OCT2Hist_UseModel/SAM_Med2D")
@@ -45,7 +46,6 @@ sys.path.append('./zero_shot_segmentation')
 
 # Flags
 visualize_input_gt = True
-# visualize_input_hist = False
 visualize_pred_vs_gt_vhist = True
 visualize_pred_vs_gt_oct = True
 visualize_pred_over_vhist = True
@@ -57,8 +57,8 @@ segment_real_histology = False
 segment_oct_flag = True  # not supported in bcc 3d segmentation
 continue_for_existing_images = True
 # None or filename
-single_image_to_segment = None
-indices_to_segment  = range(1000)
+single_image_to_segment = None #"LH-22-Slide03_Section01"
+indices_to_segment  = range(500)
 
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
 
@@ -272,8 +272,8 @@ def segment_vhist(oct_image, filename, epidermis_mask, oct_image_name, dont_care
     dont_care_mask = crop(dont_care_mask, **crop_args)
     if visualize_input_vhist:
         plt.figure(figsize=(5, 5))
-        cropped_vhist = cv2.cvtColor(cropped_vhist, cv2.COLOR_BGR2RGB)
         cv2.imwrite(f'{os.path.join(output_image_dir, oct_image_name)}_cropped_vhist.png', cropped_vhist)
+        cropped_vhist = cv2.cvtColor(cropped_vhist, cv2.COLOR_BGR2RGB)
         plt.imshow(cropped_vhist)
         cropped_vhist = cv2.cvtColor(cropped_vhist, cv2.COLOR_BGR2RGB)
         show_mask(cropped_vhist_mask_true, plt.gca(), color_arr=COLORS.PREDICTED_EPIDERMISE_BLUE)
@@ -499,7 +499,7 @@ def main(args):
             skip_vhist = continue_for_existing_images and does_column_exist(oct_fname, "dice_vhist")
             if not skip_vhist:
                 try:
-                    segment_vhist(image_path, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask,
+                    segment_vhist(oct_image, filename, epidermis_mask, image_name, dont_care_mask, prompts, bcc_mask,
                                   vhist_image_name)
                     total_samples_vhist += 1
                 except Exception as e:
@@ -518,7 +518,7 @@ def get_annotations(dataset, oct_fname):
     bcc_mask = None
     if ANNOTATED_DATA:
         oct_data = dataset.df[dataset.df.img_filename == oct_fname]
-        epidermis_data = oct_data[oct_data.cat_name == "epidermis"].ann_segmentation.values[0][0]
+        epidermis_data = oct_data[oct_data.cat_name == segmentation_class].ann_segmentation.values[0][0]
         epidermis_mask = coco_mask_to_numpy(oct_image.shape[:2], epidermis_data)
         dont_care_mask = numpy.zeros(oct_image.shape[:2], dtype=bool)
         if 'hair' in oct_data.cat_name.unique():
