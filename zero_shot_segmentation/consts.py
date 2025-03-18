@@ -4,14 +4,14 @@ MEDSAM = True
 SAMMED_2D = False
 SAM = False
 SAM2 = False
-#
-rf_api_key = "R04BinsZcBZ6PsfKR2fP"
-rf_workspace = "yolab-kmmfx"
-rf_project_name = "paper_data" #"paper_data"
-rf_dir_name = rf_project_name
-rf_dataset_type = "coco-segmentation"  # "png-mask-semantic"
-version = 7
-segmentation_class = "epidermis"
+# #
+# rf_api_key = "R04BinsZcBZ6PsfKR2fP"
+# rf_workspace = "yolab-kmmfx"
+# rf_project_name = "paper_data" #"paper_data"
+# rf_dir_name = rf_project_name
+# rf_dataset_type = "coco-segmentation"  # "png-mask-semantic"
+# version = 7
+# segmentation_class = "epidermis"
 
 
 # rf_api_key = "R04BinsZcBZ6PsfKR2fP"
@@ -38,13 +38,13 @@ segmentation_class = "epidermis"
 # version = 1
 
 # eyes 2: 4500 images
-# rf_api_key = "R04BinsZcBZ6PsfKR2fP"
-# rf_workspace = "yolab-kmmfx"
-# rf_project_name = "oct-semantic-qyrkd" #"paper_data"
-# rf_dir_name = "oct-semantic-" #"paper_data"
-# rf_dataset_type = "coco-segmentation"  # "png-mask-semantic"
-# segmentation_class = "IS-OS"# "RPE"# "OPL"# "ILM"#
-# version = 1
+rf_api_key = "R04BinsZcBZ6PsfKR2fP"
+rf_workspace = "yolab-kmmfx"
+rf_project_name = "oct-semantic-qyrkd" #"paper_data"
+rf_dir_name = "oct-semantic-" #"paper_data"
+rf_dataset_type = "coco-segmentation"  # "png-mask-semantic"
+segmentation_class = "ILM"# "OPL"# "IS-OS"#  "RPE"#
+version = 1
 
 INTERACTIVE_POINT_PREDICTION = False
 DOWNSAMPLE_SAM_INPUT = False
@@ -70,7 +70,7 @@ GEL_BOTTOM_ROW = 100 #can be NAN
 ANNOTATED_DATA = True
 CONST_BOX = [0, 160, 1000, 400]
 NPOINTS_FOR_SEGMENTATION = 30
-MASK_SCALE_FACTOR = 0.15
+MASK_SCALE_FACTOR = 0.0
 CROP_HISTOLOGY = True
 RUN_FIVE_TIMES = False
 # ROBOFLOW_ANNOT_DATASET_DIR = "/Users/dannybarash/Code/oct/medsam/zero_shot_segmentation_test_sam/2024.4.30_83F_ST2_Cheek_10x_1_R2-1_CE/test"

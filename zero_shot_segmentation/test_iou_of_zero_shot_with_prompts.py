@@ -55,10 +55,10 @@ segment_virtual_histology = False
 segment_bcc = False
 segment_real_histology = False
 segment_oct_flag = True  # not supported in bcc 3d segmentation
-continue_for_existing_images = True
+continue_for_existing_images = False
 # None or filename
-single_image_to_segment = None #"LH-22-Slide03_Section01"
-indices_to_segment  = range(500)
+single_image_to_segment = "AMD_-11-_Image_-19" # "LG-65-Slide07_Section01" #   "LE-03-Slide06_Section03"#
+indices_to_segment  = range(50000)
 
 patient_to_skip = ["LG-63", "LG-73", "LHC-36"]
 
@@ -221,6 +221,8 @@ def segment_oct(oct_image, filename, epidermis_mask, image_name, dont_care_mask,
                                             prompts, ext="oct_pred")
             visualize_prediction_with_outline(best_mask, cropped_histology_gt, no_gel_oct, image_name, output_image_dir,
                                               ext="oct_pred")
+            visualize_prediction_only(best_mask, image_name, output_image_dir,
+                                      ext="oct_mask")
             if no_gel_oct is not None:
                 fpath = f'{os.path.join(output_image_dir, image_name)}_{"oct_no_gel"}'
                 cv2.imwrite(f'{fpath}.png', no_gel_oct)
@@ -329,6 +331,8 @@ def segment_vhist(oct_image, filename, epidermis_mask, oct_image_name, dont_care
                                         prompts, ext="vhist_pred_over_oct")
 
         visualize_prediction_over_image(best_mask, cropped_vhist, oct_image_name, output_image_dir, ext="vhist_pred")
+        visualize_prediction_only(best_mask, oct_image_name, output_image_dir,
+                                  ext="vhist_mask")
         visualize_prediction_with_outline(best_mask, cropped_vhist_mask_true, no_gel_oct, oct_image_name,
                                           output_image_dir, ext="vhist_pred_over_oct")
 
@@ -354,6 +358,9 @@ def segment_vhist(oct_image, filename, epidermis_mask, oct_image_name, dont_care
 
 def does_column_exist(oct_fname, domain_dice_str):  # domain_dice_str = "dice_oct" | "dice_vhist" | "dice_histology"
     sample_name = extract_filename_prefix(oct_fname)
+    #check in sample_name is in index
+    if sample_name not in df.index:
+        return False
     row = df.loc[sample_name]
     return domain_dice_str in row.index and not pandas.isna(row[domain_dice_str])
 
@@ -367,7 +374,7 @@ def main(args):
     global oct_image, df, output_image_dir, total_dice_oct, total_dice_vhist, total_iou_oct, total_iou_vhist, \
         total_iou_histology, total_dice_histology, total_samples_oct, total_samples_vhist, total_samples_histology
     print(f"args: {args}")
-    download_images_and_masks()
+    # download_images_and_masks()
     # Get the list of image files
     image_files = [f for f in os.listdir(roboflow_annot_dataset_dir) if f.endswith(".jpg")]
     image_files.sort()
@@ -587,11 +594,42 @@ def visualize_prediction_with_outline(best_mask, gt_mask, cropped_oct_image, ima
         overlay[best_mask] = color_blue
     gt_outline = boolean_mask_image_to_boolean_outline_image(gt_mask)
     overlay[gt_outline] = color_green
-    alpha = 0.2
+    alpha = 0.4
     overlayed_image = cv2.addWeighted(overlay, alpha, cropped_oct_image, 1 - alpha, 0)
     fpath = f'{os.path.join(output_image_dir, image_name)}_{ext}.png'
     cv2.imwrite(fpath, overlayed_image)
 
+
+# def visualize_prediction_with_outline(best_mask, gt_mask, cropped_oct_image, image_name, output_image_dir, ext):
+#     best_mask = best_mask.astype(bool)
+#     overlay = cropped_oct_image.copy()
+#
+#     # Adjusted color intensities for better visibility
+#     color_orange = (0, 165, 255)  # Stronger orange
+#     color_green = (0, 255, 0)  # Stronger green
+#     color_blue = (255, 0, 0)  # Stronger blue (pure blue)
+#
+#     if "vhist_pred_over_oct" in ext:
+#         overlay[best_mask] = color_orange
+#     else:
+#         overlay[best_mask] = color_blue
+#
+#     # Get ground truth outline and enhance visibility
+#     gt_outline = boolean_mask_image_to_boolean_outline_image(gt_mask)
+#
+#     # Use dilation to make the outline thicker
+#     kernel = np.ones((3, 3), np.uint8)
+#     gt_outline_dilated = cv2.dilate(gt_outline.astype(np.uint8), kernel, iterations=1)
+#
+#     overlay[gt_outline_dilated.astype(bool)] = color_green
+#
+#     # Increase the alpha value for better contrast
+#     alpha = 0.4  # Increase from 0.2 to 0.4 for better visibility
+#     overlayed_image = cv2.addWeighted(overlay, alpha, cropped_oct_image, 1 - alpha, 0)
+#
+#     # Save the resulting image
+#     fpath = f'{os.path.join(output_image_dir, image_name)}_{ext}.png'
+#     cv2.imwrite(fpath, overlayed_image)
 
 def visualize_prediction_over_image(best_mask, cropped_oct_image, image_name, output_image_dir, ext):
     best_mask = best_mask.astype(bool)
